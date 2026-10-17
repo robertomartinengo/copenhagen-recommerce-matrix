@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from database import supabase
+from cpi_engine import compute_cpi
 
 app = FastAPI(
     title="Copenhagen Re-Commerce Matrix API",
@@ -17,9 +18,40 @@ def read_root():
 @app.get("/zones")
 def get_zones():
     try:
-        # Tenta di leggere la tabella da Supabase
-        response = supabase.table("copenhagen_zones").select("*").execute()
+        response = supabase.table("copenhagen_zones").select("*").order("cpi_score", desc=True).execute()
         return response.data
     except Exception as e:
-        # Se c'è un errore, lo restituisce subito sullo schermo
+        return {"error_detail": str(e)}
+
+@app.post("/calculate-cpi")
+def calculate_all_cpi():
+    try:
+        # 1. Recupera tutte le zone dal database
+        response = supabase.table("copenhagen_zones").select("*").execute()
+        zones = response.data
+
+        results = []
+        # 2. Calcola e aggiorna in modo sicuro solo il cpi_score per ogni zona
+        for zone in zones:
+            score = compute_cpi(
+                float(zone["waste_supply_score"]),
+                int(zone["population_gen_z"]),
+                float(zone["avg_income_dkk"]),
+                float(zone["market_gap_score"])
+            )
+            
+            # Aggiornamento mirato della colonna cpi_score
+            supabase.table("copenhagen_zones").update({"cpi_score": score}).eq("id", zone["id"]).execute()
+            results.append({"name": zone["name"], "cpi_score": score})
+
+        # Ordina i risultati dal punteggio più alto al più basso
+        results.sort(key=lambda x: x["cpi_score"], reverse=True)
+
+        return {
+            "status": "success",
+            "updated_count": len(results),
+            "top_zone": results[0] if results else None,
+            "results": results
+        }
+    except Exception as e:
         return {"error_detail": str(e)}
