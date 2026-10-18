@@ -2,6 +2,7 @@ import json
 import os
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import requests
 import streamlit as st
 
@@ -82,7 +83,7 @@ def format_gen_z(val):
     if val is None or pd.isna(val):
         return "N/A"
     if val > 100:
-        return f"{val:,.0f} ab."  # Se rappresenta la popolazione assoluta
+        return f"{val:,.0f} ab."
     return f"{val:.1f}%"
 
 # Calcolo Rank se non presente
@@ -169,7 +170,82 @@ with col_rank:
 
 st.divider()
 
-# Grafico a barre componenti CPI (Escludendo cpi_score)
+# NUOVA FASE 3: Benchmark Side-by-Side & Radar Chart
+st.subheader("⚔️ Benchmark Distrettuale Side-by-Side")
+st.caption("Confronta le prestazioni di due distretti selezionati sulle componenti del CPI.")
+
+b_col1, b_col2 = st.columns(2)
+district_list = df["name"].tolist()
+
+with b_col1:
+    dist1_name = st.selectbox("Seleziona Distretto A:", district_list, index=0)
+with b_col2:
+    dist2_name = st.selectbox("Seleziona Distretto B:", district_list, index=min(1, len(district_list)-1))
+
+d1_data = df[df["name"] == dist1_name].iloc[0]
+d2_data = df[df["name"] == dist2_name].iloc[0]
+
+# Valori Radar Chart
+categories = ["Supply Rifiuti", "Demografia / Gen Z", "Market Gap"]
+
+val1 = [
+    float(d1_data[col_supply_score]) if col_supply_score and col_supply_score in d1_data else 0.0,
+    float(d1_data[col_demo_score]) if col_demo_score and col_demo_score in d1_data else 0.0,
+    float(d1_data[col_gap_score]) if col_gap_score and col_gap_score in d1_data else 0.0,
+]
+
+val2 = [
+    float(d2_data[col_supply_score]) if col_supply_score and col_supply_score in d2_data else 0.0,
+    float(d2_data[col_demo_score]) if col_demo_score and col_demo_score in d2_data else 0.0,
+    float(d2_data[col_gap_score]) if col_gap_score and col_gap_score in d2_data else 0.0,
+]
+
+fig_radar = go.Figure()
+
+fig_radar.add_trace(go.Scatterpolar(
+    r=val1 + [val1[0]],
+    theta=categories + [categories[0]],
+    fill='toself',
+    name=dist1_name,
+    line_color='#1f77b4'
+))
+
+fig_radar.add_trace(go.Scatterpolar(
+    r=val2 + [val2[0]],
+    theta=categories + [categories[0]],
+    fill='toself',
+    name=dist2_name,
+    line_color='#ff7f0e'
+))
+
+fig_radar.update_layout(
+    polar=dict(radialaxis=dict(visible=True, range=[0, 10])),
+    showlegend=True,
+    height=400,
+    margin=dict(t=20, b=20, l=40, r=40)
+)
+
+col_radar_chart, col_radar_metrics = st.columns([3, 2])
+
+with col_radar_chart:
+    st.plotly_chart(fig_radar, use_container_width=True)
+
+with col_radar_metrics:
+    st.markdown(f"#### 📊 Deltas: **{dist1_name}** vs **{dist2_name}**")
+    cpi_diff = d1_data["cpi_score"] - d2_data["cpi_score"]
+    st.metric("Delta CPI Score", f"{d1_data['cpi_score']:.1f}", f"{cpi_diff:+.1f} vs {dist2_name}")
+    
+    if col_gen_z and col_gen_z in d1_data:
+        gz_diff = d1_data[col_gen_z] - d2_data[col_gen_z]
+        st.metric("Delta Gen Z", format_gen_z(d1_data[col_gen_z]), f"{gz_diff:+,.0f} vs {dist2_name}" if d1_data[col_gen_z] > 100 else f"{gz_diff:+.1f}%")
+        
+    if col_income and col_income in d1_data:
+        inc_diff = d1_data[col_income] - d2_data[col_income]
+        st.metric("Delta Reddito Medio", f"{d1_data[col_income]:,.0f} DKK", f"{inc_diff:+,.0f} DKK vs {dist2_name}")
+
+st.divider()
+
+# Grafico a barre componenti CPI
 st.subheader("📊 Decomposizione del Punteggio CPI per Distretto")
 bar_y_cols = [c for c in [col_supply_score, col_demo_score, col_gap_score] if c and c in df.columns and c != "cpi_score"]
 
