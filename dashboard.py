@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+from pdf_generator import generate_district_pdf
 
 # Configurazione Pagina
 st.set_page_config(
@@ -72,11 +73,26 @@ def get_col(df_obj, candidates):
             return c
     return None
 
-col_supply_score = get_col(df, ["waste_supply_score", "supply_score"])
-col_demo_score = get_col(df, ["demographics_score", "demo_score"])
-col_gap_score = get_col(df, ["market_gap_score", "gap_score"])
+col_supply_score = get_col(df, ["waste_supply_score", "supply_score"]) or "cpi_score"
+col_gap_score = get_col(df, ["market_gap_score", "gap_score"]) or "cpi_score"
 col_gen_z = get_col(df, ["population_gen_z", "gen_z_percentage", "gen_z_share"])
 col_income = get_col(df, ["avg_income_dkk", "avg_annual_income_eur"])
+
+# Calcolo dinamico e matematicamente esatto del Demographics Score
+if "demographics_score" not in df.columns:
+    if w_demo > 0:
+        df["demographics_score"] = (
+            df["cpi_score"] - (df[col_supply_score] * w_supply) - (df[col_gap_score] * w_gap)
+        ) / w_demo
+        df["demographics_score"] = df["demographics_score"].clip(0, 10)
+    else:
+        gz_min, gz_max = df[col_gen_z].min(), df[col_gen_z].max()
+        inc_min, inc_max = df[col_income].min(), df[col_income].max()
+        gz_norm = (df[col_gen_z] - gz_min) / (gz_max - gz_min) * 10 if gz_max > gz_min else 5
+        inc_norm = (df[col_income] - inc_min) / (inc_max - inc_min) * 10 if inc_max > inc_min else 5
+        df["demographics_score"] = (gz_norm * 0.6) + (inc_norm * 0.4)
+
+col_demo_score = "demographics_score"
 
 # Normalizzazione visualizzazione Gen Z
 def format_gen_z(val):
@@ -170,9 +186,9 @@ with col_rank:
 
 st.divider()
 
-# NUOVA FASE 3: Benchmark Side-by-Side & Radar Chart
+# Benchmark Side-by-Side Optimised for Retail Decision Makers
 st.subheader("⚔️ Benchmark Distrettuale Side-by-Side")
-st.caption("Confronta le prestazioni di due distretti selezionati sulle componenti del CPI.")
+st.caption("Confronto analitico diretto tra due aree per valutare l'apertura di un punto vendita o centro di raccolta.")
 
 b_col1, b_col2 = st.columns(2)
 district_list = df["name"].tolist()
@@ -185,8 +201,8 @@ with b_col2:
 d1_data = df[df["name"] == dist1_name].iloc[0]
 d2_data = df[df["name"] == dist2_name].iloc[0]
 
-# Valori Radar Chart
-categories = ["Supply Rifiuti", "Demografia / Gen Z", "Market Gap"]
+# Etichette orientate al business
+categories_display = ["Materia Prima Tessile", "Target Gen Z", "Opportunità di Mercato"]
 
 val1 = [
     float(d1_data[col_supply_score]) if col_supply_score and col_supply_score in d1_data else 0.0,
@@ -200,66 +216,83 @@ val2 = [
     float(d2_data[col_gap_score]) if col_gap_score and col_gap_score in d2_data else 0.0,
 ]
 
-fig_radar = go.Figure()
+# Tab puliti senza gergo tecnico
+tab_bars, tab_radar = st.tabs(["📊 Confronto a Barre", "🕸️ Profilo Radar"])
 
-fig_radar.add_trace(go.Scatterpolar(
-    r=val1 + [val1[0]],
-    theta=categories + [categories[0]],
-    fill='toself',
-    name=dist1_name,
-    line_color='#1f77b4'
-))
+with tab_bars:
+    bench_df = pd.DataFrame({
+        "Indicatore": categories_display * 2,
+        "Punteggio (0-10)": val1 + val2,
+        "Distretto": [dist1_name] * 3 + [dist2_name] * 3
+    })
+    
+    fig_grouped = px.bar(
+        bench_df,
+        x="Indicatore",
+        y="Punteggio (0-10)",
+        color="Distretto",
+        barmode="group",
+        text_auto=".1f",
+        color_discrete_sequence=["#1f77b4", "#ff7f0e"],
+        height=380
+    )
+    fig_grouped.update_layout(
+        yaxis_range=[0, 10],
+        margin=dict(t=20, b=20, l=20, r=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    st.plotly_chart(fig_grouped, use_container_width=True)
 
-fig_radar.add_trace(go.Scatterpolar(
-    r=val2 + [val2[0]],
-    theta=categories + [categories[0]],
-    fill='toself',
-    name=dist2_name,
-    line_color='#ff7f0e'
-))
+with tab_radar:
+    min_val = max(0, min(val1 + val2) - 1.5)
+    max_val = min(10, max(val1 + val2) + 0.5)
 
-fig_radar.update_layout(
-    polar=dict(radialaxis=dict(visible=True, range=[0, 10])),
-    showlegend=True,
-    height=400,
-    margin=dict(t=20, b=20, l=40, r=40)
-)
+    fig_radar = go.Figure()
 
-col_radar_chart, col_radar_metrics = st.columns([3, 2])
+    fig_radar.add_trace(go.Scatterpolar(
+        r=val1 + [val1[0]],
+        theta=categories_display + [categories_display[0]],
+        fill='toself',
+        fillcolor='rgba(31, 119, 180, 0.2)',
+        name=dist1_name,
+        line=dict(color='#1f77b4', width=3),
+        marker=dict(size=8)
+    ))
 
-with col_radar_chart:
+    fig_radar.add_trace(go.Scatterpolar(
+        r=val2 + [val2[0]],
+        theta=categories_display + [categories_display[0]],
+        fill='toself',
+        fillcolor='rgba(255, 127, 14, 0.2)',
+        name=dist2_name,
+        line=dict(color='#ff7f0e', width=3),
+        marker=dict(size=8)
+    ))
+
+    fig_radar.update_layout(
+        polar=dict(
+            radialaxis=dict(visible=True, range=[min_val, max_val])
+        ),
+        showlegend=True,
+        height=380,
+        margin=dict(t=20, b=20, l=40, r=40)
+    )
     st.plotly_chart(fig_radar, use_container_width=True)
 
-with col_radar_metrics:
-    st.markdown(f"#### 📊 Deltas: **{dist1_name}** vs **{dist2_name}**")
-    cpi_diff = d1_data["cpi_score"] - d2_data["cpi_score"]
-    st.metric("Delta CPI Score", f"{d1_data['cpi_score']:.1f}", f"{cpi_diff:+.1f} vs {dist2_name}")
-    
-    if col_gen_z and col_gen_z in d1_data:
-        gz_diff = d1_data[col_gen_z] - d2_data[col_gen_z]
-        st.metric("Delta Gen Z", format_gen_z(d1_data[col_gen_z]), f"{gz_diff:+,.0f} vs {dist2_name}" if d1_data[col_gen_z] > 100 else f"{gz_diff:+.1f}%")
-        
-    if col_income and col_income in d1_data:
-        inc_diff = d1_data[col_income] - d2_data[col_income]
-        st.metric("Delta Reddito Medio", f"{d1_data[col_income]:,.0f} DKK", f"{inc_diff:+,.0f} DKK vs {dist2_name}")
+# Deltas numerici
+st.markdown(f"#### 📊 Differenziale Strategico: **{dist1_name}** vs **{dist2_name}**")
+d_col1, d_col2, d_col3 = st.columns(3)
 
-st.divider()
+cpi_diff = d1_data["cpi_score"] - d2_data["cpi_score"]
+d_col1.metric("Delta CPI Score", f"{d1_data['cpi_score']:.1f}", f"{cpi_diff:+.1f} vs {dist2_name}")
 
-# Grafico a barre componenti CPI
-st.subheader("📊 Decomposizione del Punteggio CPI per Distretto")
-bar_y_cols = [c for c in [col_supply_score, col_demo_score, col_gap_score] if c and c in df.columns and c != "cpi_score"]
+if col_gen_z and col_gen_z in d1_data:
+    gz_diff = d1_data[col_gen_z] - d2_data[col_gen_z]
+    d_col2.metric("Delta Gen Z", format_gen_z(d1_data[col_gen_z]), f"{gz_diff:+,.0f} vs {dist2_name}" if d1_data[col_gen_z] > 100 else f"{gz_diff:+.1f}%")
 
-fig_bar = px.bar(
-    df,
-    x="name",
-    y=bar_y_cols,
-    title="Contributo delle Componenti al CPI Totale",
-    labels={"value": "Punteggio Componente", "variable": "Componente", "name": "Distretto"},
-    barmode="stack",
-    height=400
-)
-st.plotly_chart(fig_bar, use_container_width=True)
-
+if col_income and col_income in d1_data:
+    inc_diff = d1_data[col_income] - d2_data[col_income]
+    d_col3.metric("Delta Reddito Medio", f"{d1_data[col_income]:,.0f} DKK", f"{inc_diff:+,.0f} DKK vs {dist2_name}")
 # Deep-Dive Ispettore per Singolo Distretto
 st.divider()
 st.subheader("🔍 Ispettore Dettagliato Distretto")
@@ -272,12 +305,31 @@ d_col2.metric("Gen Z Share / Popolazione", format_gen_z(district_data[col_gen_z]
 d_col3.metric("Reddito Medio", f"{district_data[col_income]:,.0f} DKK" if col_income else "N/A")
 d_col4.metric("Market Gap Score", f"{district_data[col_gap_score]:.1f}" if col_gap_score and col_gap_score in district_data else "N/A")
 
-# Export CSV Button
+# Pulsanti Export CSV e PDF
 st.divider()
-csv_data = df.to_csv(index=False).encode("utf-8")
-st.download_button(
-    label="📥 Scarica Report Matrice in CSV",
-    data=csv_data,
-    file_name="copenhagen_recommerce_matrix.csv",
-    mime="text/csv"
-)
+col_dl1, col_dl2 = st.columns(2)
+
+with col_dl1:
+    csv_data = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Scarica Matrice Completa (CSV)",
+        data=csv_data,
+        file_name="copenhagen_recommerce_matrix.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+with col_dl2:
+    pdf_filename = f"Executive_Report_{selected_district.replace(' ', '_')}.pdf"
+    generate_district_pdf(district_data.to_dict(), filename=pdf_filename)
+
+    if os.path.exists(pdf_filename):
+        with open(pdf_filename, "rb") as pdf_file:
+            pdf_bytes = pdf_file.read()
+            st.download_button(
+                label=f"📄 Scarica Report PDF ({selected_district})",
+                data=pdf_bytes,
+                file_name=pdf_filename,
+                mime="application/pdf",
+                use_container_width=True
+            )
