@@ -26,7 +26,7 @@ jobs:
 
     - name: Run Pytest suite
       env:
-        SUPABASE_URL: "https://placeholder-project.supabase.co"
-        SUPABASE_KEY: "placeholder-anon-key"
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       run: |
         pytest
