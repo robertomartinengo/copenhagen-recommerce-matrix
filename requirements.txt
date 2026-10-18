@@ -10,3 +10,4 @@ python-dotenv>=1.0.0
 pytest-cov>=4.1.0
 mypy>=1.5.1
 fpdf2>=2.7.6
+python-telegram-bot>=20.6
