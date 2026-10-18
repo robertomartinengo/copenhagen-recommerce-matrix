@@ -24,9 +24,13 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Run Pytest suite
+    - name: Run Type Checks with Mypy
+      run: |
+        mypy cpi_engine.py schemas.py --ignore-missing-imports
+
+    - name: Run Pytest with Coverage
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       run: |
-        pytest
+        pytest --cov=. --cov-report=term-missing
