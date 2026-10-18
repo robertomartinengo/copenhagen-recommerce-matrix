@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from typing import Optional
 
@@ -15,8 +15,7 @@ class ZoneResponse(ZoneBase):
     cpi_score: float
     created_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CPICalculationResult(BaseModel):
     name: str
@@ -28,7 +27,6 @@ class CPICalculationResponse(BaseModel):
     top_zone: Optional[CPICalculationResult] = None
     results: list[CPICalculationResult]
 
-# Nuovi schemi per la simulazione "What-If"
 class CPISimulationRequest(BaseModel):
     weight_supply: float = Field(0.40, ge=0.0, le=1.0, description="Peso per la fornitura di rifiuti/tessile")
     weight_demographics: float = Field(0.35, ge=0.0, le=1.0, description="Peso per Gen Z e reddito medio")
