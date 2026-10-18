@@ -10,7 +10,6 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HE
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Messaggio di benvenuto orientato al commerciante."""
     welcome_text = (
         "♻️ *Copenhagen Re-Commerce Matrix Bot*\n\n"
         "Ciao! Ti aiuto a trovare la **zona perfetta** a Copenhagen per aprire il tuo "
@@ -29,7 +28,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Gestisce i click sui pulsanti in chat."""
     query = update.callback_query
     await query.answer()
     
