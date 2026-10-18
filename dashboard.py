@@ -1,213 +1,207 @@
-import streamlit as st
-import requests
+import json
+import os
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
+import requests
+import streamlit as st
 
+# Configurazione Pagina
 st.set_page_config(
     page_title="Copenhagen Re-Commerce Matrix",
     page_icon="♻️",
     layout="wide"
 )
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = os.getenv("API_URL", "http://localhost:8000")
+
+# Caricamento GeoJSON
+@st.cache_data
+def load_geojson():
+    geojson_path = "copenhagen_districts.geojson"
+    if os.path.exists(geojson_path):
+        with open(geojson_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+geojson_data = load_geojson()
 
 st.title("♻️ Copenhagen Re-Commerce Matrix")
-st.markdown("##### Location Intelligence & Circular Fashion Analytics (Greater Copenhagen & Frederiksberg)")
+st.caption("B2B Location Intelligence Platform for Circular Fashion & Textile Recycling")
 
-# ---------------------------------------------------------
-# Sidebar: Controlli Simulazione What-If
-# ---------------------------------------------------------
-st.sidebar.header("🎛️ Simulazione Pesi CPI")
-st.sidebar.markdown("Modifica i pesi della formula per testare scenari strategici in tempo reale.")
+# Sidebar - What-If Engine
+st.sidebar.header("🎛️ What-If Simulation Engine")
+st.sidebar.markdown("Regola i pesi per ricalcolare il **Circular Potential Index (CPI)** in tempo reale:")
 
-w_supply = st.sidebar.slider("Peso Supply (Rifiuti/Tessile)", 0.0, 1.0, 0.40, 0.05)
-w_demo = st.sidebar.slider("Peso Demografia (Gen Z / Income)", 0.0, 1.0, 0.35, 0.05)
-w_gap = st.sidebar.slider("Peso Vuoto di Mercato", 0.0, 1.0, 0.25, 0.05)
+w_supply = st.sidebar.slider("Peso Supply Rifiuti Tessili (w1)", 0.0, 1.0, 0.40, 0.05)
+w_demo = st.sidebar.slider("Peso Demografia Gen Z / Reddito (w2)", 0.0, 1.0, 0.35, 0.05)
+w_gap = st.sidebar.slider("Peso Vuoto di Mercato (w3)", 0.0, 1.0, 0.25, 0.05)
 
-total_w = round(w_supply + w_demo + w_gap, 2)
+total_weight = w_supply + w_demo + w_gap
+if abs(total_weight - 1.0) > 0.01:
+    st.sidebar.warning(f"⚠️ La somma dei pesi è {total_weight:.2f}. Per la massima accuratezza, la somma dovrebbe essere 1.00.")
 
-if total_w != 1.0:
-    st.sidebar.error(f"⚠️ La somma dei pesi deve fare 1.0 (Attuale: {total_w})")
-else:
-    st.sidebar.success("✅ Pesi bilanciati correttamente (100%)")
-
-# Coordinate per la mappa dei quartieri
-DISTRICT_COORDS = {
-    "DK-1000": {"lat": 55.6761, "lon": 12.5683},  # Indre By
-    "DK-2200": {"lat": 55.6888, "lon": 12.5539},  # Nørrebro
-    "DK-1600": {"lat": 55.6663, "lon": 12.5458},  # Vesterbro
-    "DK-2100": {"lat": 55.7028, "lon": 12.5783},  # Østerbro
-    "DK-2300": {"lat": 55.6510, "lon": 12.5850},  # Amager Vest
-    "DK-2300-E": {"lat": 55.6580, "lon": 12.6150},# Amager Øst
-    "DK-2500": {"lat": 55.6600, "lon": 12.5080},  # Valby
-    "DK-2400": {"lat": 55.7080, "lon": 12.5320},  # Bispebjerg
-    "DK-2720": {"lat": 55.6880, "lon": 12.4880},  # Vanløse
-    "DK-2700": {"lat": 55.7030, "lon": 12.4830},  # Brønshøj-Husum
-    "DK-2000": {"lat": 55.6780, "lon": 12.5220}   # Frederiksberg
-}
-
-# ---------------------------------------------------------
-# Fetch Dati dal Backend FastAPI
-# ---------------------------------------------------------
-try:
-    if total_w == 1.0 and (w_supply != 0.40 or w_demo != 0.35 or w_gap != 0.25):
-        # Chiamata alla simulazione What-If
-        res = requests.post(
-            f"{API_URL}/simulate-cpi",
-            json={
-                "weight_supply": w_supply,
-                "weight_demographics": w_demo,
-                "weight_market_gap": w_gap
-            }
+# Fetch Dati da API Backend
+@st.cache_data(ttl=60)
+def fetch_zones(w1: float, w2: float, w3: float):
+    try:
+        response = requests.get(
+            f"{API_URL}/zones",
+            params={"w_supply": w1, "w_demo": w2, "w_gap": w3},
+            timeout=10
         )
-        sim_data = res.json()["results"]
+        if response.status_code == 200:
+            return response.json()
+        return []
+    except Exception as e:
+        st.error(f"Errore di connessione al Backend API ({API_URL}): {e}")
+        return []
+
+data = fetch_zones(w_supply, w_demo, w_gap)
+
+if not data:
+    st.warning("Nessun dato disponibile. Assicurati che il backend FastAPI sia avviato.")
+    st.stop()
+
+df = pd.DataFrame(data)
+
+# Mappatura sicura delle colonne
+def get_col(df_obj, candidates):
+    for c in candidates:
+        if c in df_obj.columns:
+            return c
+    return None
+
+col_supply_score = get_col(df, ["waste_supply_score", "supply_score"])
+col_demo_score = get_col(df, ["demographics_score", "demo_score"])
+col_gap_score = get_col(df, ["market_gap_score", "gap_score"])
+col_gen_z = get_col(df, ["population_gen_z", "gen_z_percentage", "gen_z_share"])
+col_income = get_col(df, ["avg_income_dkk", "avg_annual_income_eur"])
+
+# Normalizzazione visualizzazione Gen Z
+def format_gen_z(val):
+    if val is None or pd.isna(val):
+        return "N/A"
+    if val > 100:
+        return f"{val:,.0f} ab."  # Se rappresenta la popolazione assoluta
+    return f"{val:.1f}%"
+
+# Calcolo Rank se non presente
+if "rank" not in df.columns:
+    df["rank"] = df["cpi_score"].rank(ascending=False, method="min").astype(int)
+    df = df.sort_values("rank")
+
+# KPI Summary Cards
+kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+top_zone = df.iloc[0]
+kpi1.metric("Top Strategic District", top_zone["name"], f"CPI: {top_zone['cpi_score']:.1f}")
+kpi2.metric("Media CPI Metropolitano", f"{df['cpi_score'].mean():.1f}")
+
+gen_z_avg = df[col_gen_z].mean() if col_gen_z else None
+income_avg = df[col_income].mean() if col_income else None
+
+kpi3.metric("Media Gen Z Area", format_gen_z(gen_z_avg))
+kpi4.metric("Reddito Medio Area", f"{income_avg:,.0f} DKK" if income_avg else "N/A")
+
+st.divider()
+
+# Layout Mappa Poligonale Heatmap & Classifica Side-by-Side
+col_map, col_rank = st.columns([3, 2])
+
+with col_map:
+    st.subheader("🗺️ Spatial Heatmap (CPI Score per Distretto)")
+    if geojson_data:
+        has_choropleth_map = hasattr(px, "choropleth_map")
         
-        # Recupera le metriche di base
-        base_zones = requests.get(f"{API_URL}/zones").json()
-        base_df = pd.DataFrame(base_zones)
-        sim_df = pd.DataFrame(sim_data)
-        
-        df = pd.merge(sim_df, base_df[["district_code", "population_gen_z", "avg_income_dkk", "waste_supply_score", "market_gap_score"]], on="district_code")
-        score_col = "simulated_cpi_score"
+        hover_dict = {"cpi_score": ":.1f"}
+        if col_supply_score and col_supply_score in df.columns:
+            hover_dict[col_supply_score] = ":.1f"
+        if col_gap_score and col_gap_score in df.columns:
+            hover_dict[col_gap_score] = ":.1f"
+
+        map_kwargs = {
+            "data_frame": df,
+            "geojson": geojson_data,
+            "locations": "name",
+            "featureidkey": "properties.name",
+            "color": "cpi_score",
+            "color_continuous_scale": "Viridis",
+            "range_color": (df["cpi_score"].min(), df["cpi_score"].max()),
+            "zoom": 10.5,
+            "center": {"lat": 55.6761, "lon": 12.5683},
+            "opacity": 0.65,
+            "hover_name": "name",
+            "hover_data": hover_dict,
+            "labels": {"cpi_score": "Punteggio CPI"}
+        }
+
+        if has_choropleth_map:
+            map_kwargs["map_style"] = "carto-positron"
+            fig_map = px.choropleth_map(**map_kwargs)
+        else:
+            map_kwargs["mapbox_style"] = "carto-positron"
+            fig_map = px.choropleth_mapbox(**map_kwargs)
+
+        fig_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=450)
+        st.plotly_chart(fig_map, use_container_width=True)
     else:
-        res = requests.get(f"{API_URL}/zones")
-        data = res.json()
-        df = pd.DataFrame(data)
-        score_col = "cpi_score"
-        df["rank_change"] = 0
+        st.warning("Mappa poligonale non disponibile (GeoJSON mancante).")
 
-    # Aggiunta coordinate lat/lon al dataframe per la mappa
-    df["lat"] = df["district_code"].map(lambda code: DISTRICT_COORDS.get(code, {}).get("lat", 55.6761))
-    df["lon"] = df["district_code"].map(lambda code: DISTRICT_COORDS.get(code, {}).get("lon", 12.5683))
-
-    # ---------------------------------------------------------
-    # Key Performance Indicators (KPIs)
-    # ---------------------------------------------------------
-    top_zone = df.iloc[0]
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("🏆 Top District", top_zone["name"])
-    col2.metric("⭐ Highest CPI Score", f"{top_zone[score_col]:.2f}")
-    col3.metric("📈 Metro Average CPI", f"{df[score_col].mean():.2f}")
-    col4.metric("📍 Zone Analizzate", len(df))
-
-    st.markdown("---")
-
-    # ---------------------------------------------------------
-    # Layout a schede (Tabs)
-    # ---------------------------------------------------------
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Classifica & Map", 
-        "🧩 Breakdown Componenti", 
-        "🔍 Scheda Dettaglio Quartiere", 
-        "📄 Data Matrix Table"
-    ])
-
-    # TAB 1: Classifica e Mappa
-    with tab1:
-        left_col, right_col = st.columns([1.2, 1])
-        
-        with left_col:
-            st.subheader("Classifica Circular Potential Index")
-            fig_bar = px.bar(
-                df,
-                x="name",
-                y=score_col,
-                color=score_col,
-                labels={"name": "Quartiere", score_col: "CPI Score"},
-                color_continuous_scale="Viridis",
-                text_auto=".2f"
-            )
-            fig_bar.update_layout(xaxis_tickangle=-45, showlegend=False)
-            st.plotly_chart(fig_bar, use_container_width=True)
-
-        with right_col:
-            st.subheader("Mappa Geografica - Copenhagen & Frederiksberg")
+with col_rank:
+    st.subheader("🏆 Leaderboard Distretti")
+    rank_cols = ["rank", "name", "cpi_score"]
+    for c in [col_supply_score, col_gap_score]:
+        if c and c in df.columns and c not in rank_cols:
+            rank_cols.append(c)
             
-            # Mappa nativa di Streamlit
-            map_df = df[["lat", "lon", "name", score_col]].copy()
-            st.map(
-                map_df,
-                latitude="lat",
-                longitude="lon",
-                size=score_col,
-                color="#2ec4b6",
-                zoom=10
-            )
+    st.dataframe(
+        df[rank_cols],
+        column_config={
+            "rank": st.column_config.NumberColumn("Rank", format="#%d"),
+            "name": "Distretto",
+            "cpi_score": st.column_config.NumberColumn("CPI", format="%.1f"),
+            col_supply_score: st.column_config.NumberColumn("Supply Score", format="%.1f"),
+            col_gap_score: st.column_config.NumberColumn("Market Gap Score", format="%.1f"),
+        },
+        hide_index=True,
+        use_container_width=True,
+        height=420
+    )
 
-    # TAB 2: Breakdown dei 3 fattori matematici
-    with tab2:
-        st.subheader("Composizione del Punteggio CPI per Quartiere")
-        st.markdown("Visualizza l'apporto di Rifiuti/Tessile, Demografia Gen Z/Reddito e Vuoto di Mercato sul punteggio finale.")
-        
-        df["contrib_supply"] = df["waste_supply_score"] * w_supply
-        
-        def calc_demo_norm(pop, inc):
-            g = min(pop / 15000.0, 1.0) * 10.0
-            i = min(inc / 450000.0, 1.0) * 10.0
-            return (g * 0.6) + (i * 0.4)
-            
-        df["demo_norm"] = df.apply(lambda r: calc_demo_norm(r["population_gen_z"], r["avg_income_dkk"]), axis=1)
-        df["contrib_demo"] = df["demo_norm"] * w_demo
-        df["contrib_gap"] = df["market_gap_score"] * w_gap
+st.divider()
 
-        fig_stacked = go.Figure(data=[
-            go.Bar(name='Supply (Waste)', x=df['name'], y=df['contrib_supply'], marker_color='#2ec4b6'),
-            go.Bar(name='Demographics (Gen Z & Income)', x=df['name'], y=df['contrib_demo'], marker_color='#e71d36'),
-            go.Bar(name='Market Gap', x=df['name'], y=df['contrib_gap'], marker_color='#ff9f1c')
-        ])
-        fig_stacked.update_layout(
-            barmode='stack',
-            title="Scomposizione Punteggio CPI (Attorno ai pesi correnti)",
-            xaxis_tickangle=-45,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        st.plotly_chart(fig_stacked, use_container_width=True)
+# Grafico a barre componenti CPI (Escludendo cpi_score)
+st.subheader("📊 Decomposizione del Punteggio CPI per Distretto")
+bar_y_cols = [c for c in [col_supply_score, col_demo_score, col_gap_score] if c and c in df.columns and c != "cpi_score"]
 
-    # TAB 3: Scheda di Dettaglio Singolo Quartiere
-    with tab3:
-        st.subheader("🔍 Deep-Dive Analitico Quartiere")
-        selected_zone_name = st.selectbox("Seleziona una zona metropolitana:", df["name"].unique())
-        zone_data = df[df["name"] == selected_zone_name].iloc[0]
+fig_bar = px.bar(
+    df,
+    x="name",
+    y=bar_y_cols,
+    title="Contributo delle Componenti al CPI Totale",
+    labels={"value": "Punteggio Componente", "variable": "Componente", "name": "Distretto"},
+    barmode="stack",
+    height=400
+)
+st.plotly_chart(fig_bar, use_container_width=True)
 
-        d_col1, d_col2, d_col3, d_col4 = st.columns(4)
-        d_col1.metric("Codice Distretto", zone_data["district_code"])
-        d_col2.metric("Popolazione Gen Z", f"{int(zone_data['population_gen_z']):,}")
-        d_col3.metric("Reddito Medio Annuo", f"{int(zone_data['avg_income_dkk']):,} DKK")
-        d_col4.metric("Waste Supply Score", f"{zone_data['waste_supply_score']}/10")
+# Deep-Dive Ispettore per Singolo Distretto
+st.divider()
+st.subheader("🔍 Ispettore Dettagliato Distretto")
+selected_district = st.selectbox("Seleziona un distretto da analizzare:", df["name"].tolist())
+district_data = df[df["name"] == selected_district].iloc[0]
 
-        st.markdown("#### Confronto con le medie di area metropolitana")
-        
-        metrics_df = pd.DataFrame({
-            "Metrica": ["Population Gen Z", "Reddito DKK", "Waste Score", "Market Gap"],
-            "Valore Zona": [
-                zone_data["population_gen_z"], 
-                zone_data["avg_income_dkk"], 
-                zone_data["waste_supply_score"], 
-                zone_data["market_gap_score"]
-            ],
-            "Media Metro CPH": [
-                df["population_gen_z"].mean(), 
-                df["avg_income_dkk"].mean(), 
-                df["waste_supply_score"].mean(), 
-                df["market_gap_score"].mean()
-            ]
-        })
-        st.dataframe(metrics_df, use_container_width=True)
+d_col1, d_col2, d_col3, d_col4 = st.columns(4)
+d_col1.metric("CPI Score", f"{district_data['cpi_score']:.1f}")
+d_col2.metric("Gen Z Share / Popolazione", format_gen_z(district_data[col_gen_z]) if col_gen_z else "N/A")
+d_col3.metric("Reddito Medio", f"{district_data[col_income]:,.0f} DKK" if col_income else "N/A")
+d_col4.metric("Market Gap Score", f"{district_data[col_gap_score]:.1f}" if col_gap_score and col_gap_score in district_data else "N/A")
 
-    # TAB 4: Tabella Dati Operativa & Export
-    with tab4:
-        st.subheader("Matrice Dati Completa")
-        st.dataframe(df.drop(columns=["lat", "lon"], errors="ignore"), use_container_width=True)
-
-        csv_res = requests.get(f"{API_URL}/export/csv")
-        if csv_res.status_code == 200:
-            st.download_button(
-                label="📥 Esporta Report CSV B2B",
-                data=csv_res.content,
-                file_name="copenhagen_recommerce_matrix.csv",
-                mime="text/csv"
-            )
-
-except Exception as e:
-    st.error(f"Errore di connessione al backend API ({API_URL}). Dettaglio: {str(e)}")
+# Export CSV Button
+st.divider()
+csv_data = df.to_csv(index=False).encode("utf-8")
+st.download_button(
+    label="📥 Scarica Report Matrice in CSV",
+    data=csv_data,
+    file_name="copenhagen_recommerce_matrix.csv",
+    mime="text/csv"
+)
