@@ -25,5 +25,8 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Run Pytest suite
+      env:
+        SUPABASE_URL: "https://placeholder-project.supabase.co"
+        SUPABASE_KEY: "placeholder-anon-key"
       run: |
         pytest
