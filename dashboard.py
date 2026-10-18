@@ -124,28 +124,16 @@ try:
         with right_col:
             st.subheader("Mappa Geografica - Copenhagen & Frederiksberg")
             
-            # Supporto compatibile sia per nuove che per vecchie versioni di Plotly
-            map_func = getattr(px, "scatter_map", getattr(px, "scatter_mapbox", None))
-            style_param = {"map_style": "open-street-map"} if hasattr(px, "scatter_map") else {"mapbox_style": "open-street-map"}
-            
-            if map_func:
-                fig_map = map_func(
-                    df,
-                    lat="lat",
-                    lon="lon",
-                    size=score_col,
-                    color=score_col,
-                    hover_name="name",
-                    hover_data={"district_code": True, score_col: ":.2f"},
-                    color_continuous_scale="Plasma",
-                    size_max=22,
-                    zoom=10.5,
-                    **style_param
-                )
-                fig_map.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-                st.plotly_chart(fig_map, use_container_width=True)
-            else:
-                st.map(df[["lat", "lon"]])
+            # Mappa nativa di Streamlit
+            map_df = df[["lat", "lon", "name", score_col]].copy()
+            st.map(
+                map_df,
+                latitude="lat",
+                longitude="lon",
+                size=score_col,
+                color="#2ec4b6",
+                zoom=10
+            )
 
     # TAB 2: Breakdown dei 3 fattori matematici
     with tab2:
