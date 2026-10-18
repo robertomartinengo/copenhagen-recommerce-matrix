@@ -13,21 +13,48 @@ from schemas import (
     SimulatedZoneResult
 )
 
+tags_metadata = [
+    {
+        "name": "Core Analytics",
+        "description": "Retrieve baseline geographic data, demographic figures, and current CPI scores for Copenhagen metro area.",
+    },
+    {
+        "name": "Simulation & Scoring",
+        "description": "Execute in-memory scenario simulations ('What-If' analysis) or recalculate database baseline scores.",
+    },
+    {
+        "name": "Data Export",
+        "description": "Export location intelligence analysis to standard formats for B2B reporting and research.",
+    },
+]
+
 app = FastAPI(
     title="Copenhagen Re-Commerce Matrix API",
-    version="0.3.0",
-    description="Location Intelligence & Data Analytics for Circular Fashion in Greater Copenhagen"
+    version="1.0.0",
+    description="""
+    ## Location Intelligence & Circular Economy Data Analytics Platform
+    
+    The **Copenhagen Re-Commerce Matrix** provides B2B decision-support metrics for second-hand, circular fashion, and textile recycling ventures in Greater Copenhagen & Frederiksberg.
+    
+    ### Key Features
+    * **11 Metropolitan Districts Covered** (10 Copenhagen Bydele + Frederiksberg Municipality)
+    * **Circular Potential Index (CPI):** CPI = (Supply * 0.40) + (Demographics * 0.35) + (Market Gap * 0.25)
+    * **Dynamic 'What-If' Simulation Engine**
+    * **B2B CSV Report Export**
+    """,
+    openapi_tags=tags_metadata
 )
 
-@app.get("/")
+@app.get("/", tags=["Core Analytics"])
 def read_root():
     return {
         "status": "online",
         "project": "Copenhagen Re-Commerce Matrix",
+        "version": "1.0.0",
         "supabase_connected": supabase is not None
     }
 
-@app.get("/zones", response_model=List[ZoneResponse])
+@app.get("/zones", response_model=List[ZoneResponse], tags=["Core Analytics"])
 def get_zones():
     try:
         response = supabase.table("copenhagen_zones").select("*").order("cpi_score", desc=True).execute()
@@ -35,7 +62,7 @@ def get_zones():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/zones/{district_code}", response_model=ZoneResponse)
+@app.get("/zones/{district_code}", response_model=ZoneResponse, tags=["Core Analytics"])
 def get_zone_by_code(district_code: str):
     try:
         response = supabase.table("copenhagen_zones").select("*").eq("district_code", district_code.upper()).execute()
@@ -47,7 +74,7 @@ def get_zone_by_code(district_code: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/calculate-cpi", response_model=CPICalculationResponse)
+@app.post("/calculate-cpi", response_model=CPICalculationResponse, tags=["Simulation & Scoring"])
 def calculate_all_cpi():
     try:
         response = supabase.table("copenhagen_zones").select("*").execute()
@@ -76,21 +103,19 @@ def calculate_all_cpi():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/simulate-cpi", response_model=CPISimulationResponse)
+@app.post("/simulate-cpi", response_model=CPISimulationResponse, tags=["Simulation & Scoring"])
 def simulate_cpi_scenario(weights: CPISimulationRequest):
-    # Verifica che la somma dei pesi sia valida (tolleranza arrotondamento a 1.0)
     total_weight = round(weights.weight_supply + weights.weight_demographics + weights.weight_market_gap, 2)
     if total_weight != 1.0:
         raise HTTPException(
             status_code=400, 
-            detail=f"La somma dei pesi deve essere pari a 1.0 (100%). Somma attuale: {total_weight}"
+            detail=f"Weight sum must equal 1.0 (100%). Current sum: {total_weight}"
         )
 
     try:
         response = supabase.table("copenhagen_zones").select("*").order("cpi_score", desc=True).execute()
         original_zones = response.data
 
-        # Mappa della posizione iniziale baseline (1-based index)
         original_ranks = {zone["district_code"]: idx + 1 for idx, zone in enumerate(original_zones)}
 
         simulated_list = []
@@ -111,14 +136,11 @@ def simulate_cpi_scenario(weights: CPISimulationRequest):
                 "simulated_cpi_score": sim_score
             })
 
-        # Ordina per il nuovo punteggio simulato
         simulated_list.sort(key=lambda x: x["simulated_cpi_score"], reverse=True)
 
-        # Calcola la variazione di posizione (rank_change)
         final_results = []
         for new_rank, item in enumerate(simulated_list, start=1):
             old_rank = original_ranks[item["district_code"]]
-            # Variazione: +2 significa che la zona è salita di 2 posizioni
             rank_change = old_rank - new_rank
             
             final_results.append(SimulatedZoneResult(
@@ -138,7 +160,7 @@ def simulate_cpi_scenario(weights: CPISimulationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/export/csv")
+@app.get("/export/csv", tags=["Data Export"])
 def export_zones_csv():
     try:
         response = supabase.table("copenhagen_zones").select("*").order("cpi_score", desc=True).execute()
