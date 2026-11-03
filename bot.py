@@ -1,6 +1,6 @@
 import os
 import asyncio
-import requests
+import httpx
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
@@ -32,7 +32,9 @@ async def handle_callback(update: Update, context) -> None:
 
     if query.data == "top_zone":
         try:
-            res = requests.get(f"{API_URL}/zones", timeout=5)
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{API_URL}/zones", timeout=10.0)
+            
             if res.status_code == 200 and len(res.json()) > 0:
                 top = res.json()[0]
                 district_name = top["name"]
@@ -58,7 +60,9 @@ async def handle_callback(update: Update, context) -> None:
 
     elif query.data == "list_zones":
         try:
-            res = requests.get(f"{API_URL}/zones", timeout=5)
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{API_URL}/zones", timeout=10.0)
+
             if res.status_code == 200:
                 zones = res.json()[:5]
                 msg = "📋 *Top 5 Distretti per Potenziale Re-Commerce (CPI):*\n\n"
