@@ -14,7 +14,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Copenhagen Re-Commerce Matrix API",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan  # <-- FONDAMENTALE
 )
 
 from fastapi import FastAPI, HTTPException, Response
