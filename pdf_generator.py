@@ -25,7 +25,7 @@ class B2BExecutivePDF(FPDF):
         self.cell(0, 10, f"Pagina {self.page_no()} | Generato il {datetime.now().strftime('%d/%m/%Y %H:%M')}", align="C")
 
 
-def generate_district_pdf(district_data: dict, filename: str = "District_Report.pdf"):
+def generate_executive_pdf(district_data: dict, filename: str = "Executive_Report.pdf"):
     pdf = B2BExecutivePDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
