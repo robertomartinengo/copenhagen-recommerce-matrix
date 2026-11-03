@@ -5,13 +5,15 @@ from bot import start_telegram_bot
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 [API] Lifespan avviato: lancio il bot Telegram in background...", flush=True)
+    print("🚀 [API] Lifespan avviato: avvio del Bot Telegram in background...", flush=True)
+    from bot import start_telegram_bot
     asyncio.create_task(start_telegram_bot())
     yield
     print("🛑 [API] Lifespan concluso.", flush=True)
 
 app = FastAPI(
     title="Copenhagen Re-Commerce Matrix API",
+    version="1.0.0",
     lifespan=lifespan
 )
 

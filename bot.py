@@ -7,8 +7,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 
 load_dotenv(override=True)
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+API_URL = os.getenv("API_URL", "http://127.0.0.1:10000")
 
 
 async def start_command(update: Update, context) -> None:
