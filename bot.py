@@ -1,6 +1,8 @@
 import os
 import asyncio
 import requests
+from dotenv import load_dotenv
+load_dotenv(override=True)
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from pdf_generator import generate_district_pdf
@@ -16,13 +18,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "negozio di moda usata, punto di raccolta o pop-up store.\n\n"
         "Seleziona un'opzione qui sotto:"
     )
-    
     keyboard = [
-        [InlineKeyboardButton("🏆 Qual è la Zona Top?", callback_data="top_zone")],
+        [InlineKeyboardButton("🎯 Qual è la Zona Top?", callback_data="top_zone")],
         [InlineKeyboardButton("📋 Lista Distretti Promettenti", callback_data="list_zones")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
     if update.message:
         await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
 
@@ -30,7 +30,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    
+
     if query.data == "top_zone":
         try:
             res = requests.get(f"{API_URL}/zones", timeout=5)
@@ -39,27 +39,55 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 district_name = top["name"]
                 cpi = top["cpi_score"]
                 gen_z = top.get("population_gen_z", top.get("gen_z_percentage", 0))
-                
                 gen_z_text = f"{gen_z:,.0f} residenti" if gen_z > 100 else f"{gen_z:.1f}%"
                 
                 msg = (
-                    f"🟢 *La Zona Migliore in Assoluto è {district_name}!*\n\n"
+                    f"🏆 *La Zona Migliore in Assoluto è {district_name}!*\n\n"
                     f"📊 *Punteggio CPI:* `{cpi:.1f} / 10`\n"
                     f"👥 *Target Gen Z:* `{gen_z_text}`\n"
                     f"💡 *Perché conviene:* Altissimo afflusso di materiale tessile usabile "
                     f"e un'ampia community di giovani acquirenti.\n\n"
                     f"Vuoi il *Report Executive PDF* completo per la tua banca/investitori?"
                 )
-                
                 keyboard = [
-                    [InlineKeyboardButton(f"📄 Scarica Report PDF ({district_name})", callback_data=f"pdf_{district_name}")]
+                    [InlineKeyboardButton(f"📄 Scarica Report PDF ({district_name})", callback_data=f"pdf_{district_name}")],
+                    [InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")]
                 ]
                 await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         except Exception as e:
             await query.edit_message_text(f"⚠️ Impossibile connettersi al backend: {e}")
 
+    elif query.data == "list_zones":
+        try:
+            res = requests.get(f"{API_URL}/zones", timeout=5)
+            if res.status_code == 200:
+                zones = res.json()[:5]  # Primi 5 distretti
+                msg = "📋 *Top 5 Distretti per Potenziale Re-Commerce (CPI):*\n\n"
+                keyboard = []
+                
+                for idx, z in enumerate(zones, start=1):
+                    msg += f"*{idx}. {z['name']}* — CPI: `{z['cpi_score']:.1f}`\n"
+                    keyboard.append([InlineKeyboardButton(f"📄 PDF {z['name']}", callback_data=f"pdf_{z['name']}")])
+                
+                keyboard.append([InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")])
+                await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception as e:
+            await query.edit_message_text(f"⚠️ Errore nel recupero della lista: {e}")
+
+    elif query.data == "menu":
+        welcome_text = (
+            "♻️ *Copenhagen Re-Commerce Matrix Bot*\n\n"
+            "Seleziona un'opzione dal menu principale:"
+        )
+        keyboard = [
+            [InlineKeyboardButton("🎯 Qual è la Zona Top?", callback_data="top_zone")],
+            [InlineKeyboardButton("📋 Lista Distretti Promettenti", callback_data="list_zones")]
+        ]
+        await query.edit_message_text(welcome_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+
     elif query.data.startswith("pdf_"):
         district_name = query.data.replace("pdf_", "")
+        await query.edit_message_text(f"⏳ *Generazione del Report Executive PDF per {district_name} in corso...*", parse_mode="Markdown")
         try:
             res = requests.get(f"{API_URL}/zones", timeout=5)
             if res.status_code == 200:
@@ -82,14 +110,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 def main() -> None:
-    if TELEGRAM_BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN_HERE":
+    if TELEGRAM_BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN_HERE" or not TELEGRAM_BOT_TOKEN:
         print("⚠️ Inserisci un TELEGRAM_BOT_TOKEN valido nel file .env per avviare il Bot Telegram.")
         return
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(handle_callback))
-    
+
     print("🤖 Bot Telegram avviato in ascolto...")
     app.run_polling()
 
