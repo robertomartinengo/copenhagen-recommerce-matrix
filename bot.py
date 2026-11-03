@@ -4,6 +4,7 @@ import httpx
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from pdf_generator import generate_executive_pdf
 
 load_dotenv(override=True)
 
@@ -74,6 +75,35 @@ async def handle_callback(update: Update, context) -> None:
                 await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         except Exception as e:
             await query.edit_message_text(f"⚠️ Errore nel recupero della lista: {e}")
+
+    elif query.data.startswith("pdf_"):
+        district_name = query.data.replace("pdf_", "")
+        await query.message.reply_text(f"⏳ Generazione del Report PDF per *{district_name}* in corso...", parse_mode="Markdown")
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{API_URL}/zones", timeout=10.0)
+            
+            if res.status_code == 200:
+                zones = res.json()
+                zone_data = next((z for z in zones if z["name"].lower() == district_name.lower()), None)
+                if not zone_data:
+                    zone_data = zones[0]
+
+                pdf_filename = f"Executive_Report_{district_name.replace(' ', '_')}.pdf"
+                generate_executive_pdf(zone_data, filename=pdf_filename)
+
+                with open(pdf_filename, "rb") as doc:
+                    await query.message.reply_document(
+                        document=doc,
+                        filename=pdf_filename,
+                        caption=f"📄 *Report Executive B2B:* {district_name}\nPronto per investitori e partner finanziari.",
+                        parse_mode="Markdown"
+                    )
+
+                if os.path.exists(pdf_filename):
+                    os.remove(pdf_filename)
+        except Exception as e:
+            await query.message.reply_text(f"⚠️ Errore durante la generazione del PDF: {e}")
 
     elif query.data == "menu":
         welcome_text = "♻️ *Copenhagen Re-Commerce Matrix Bot*\n\nSeleziona un'opzione dal menu principale:"
