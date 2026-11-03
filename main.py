@@ -36,12 +36,13 @@ def get_zones():
         if not supabase:
             raise Exception("Supabase client non inizializzato.")
         
-        response = supabase.table("districts").select("*").execute()
+        # Corretto con il nome reale della tabella nel tuo database: copenhagen_zones
+        response = supabase.table("copenhagen_zones").select("*").execute()
         if not response.data:
             raise Exception("Tabella vuota o dati non trovati.")
         return response.data
     except Exception as e:
-        # Fallback di sicurezza in caso di problemi con Supabase
+        # Fallback di sicurezza
         return [
             {
                 "name": "Nørrebro",
@@ -50,13 +51,5 @@ def get_zones():
                 "demographics_score": 8.8,
                 "market_gap_score": 8.7,
                 "population_gen_z": 14200
-            },
-            {
-                "name": "Vesterbro",
-                "cpi_score": 8.4,
-                "waste_supply_score": 8.5,
-                "demographics_score": 8.6,
-                "market_gap_score": 8.1,
-                "population_gen_z": 12500
             }
         ]
