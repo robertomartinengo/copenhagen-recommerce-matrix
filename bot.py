@@ -82,16 +82,20 @@ async def handle_callback(update: Update, context) -> None:
 
 
 async def start_telegram_bot():
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not token or token == "YOUR_TELEGRAM_BOT_TOKEN_HERE":
-        print("⚠️ TELEGRAM_BOT_TOKEN non impostato. Bot saltato.")
-        return
+    try:
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if not token:
+            print("⚠️ [BOT] TELEGRAM_BOT_TOKEN non trovato tra le variabili d'ambiente!", flush=True)
+            return
 
-    app = Application.builder().token(token).build()
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CallbackQueryHandler(handle_callback))
+        print("🤖 [BOT] Inizializzazione Bot Telegram in corso...", flush=True)
+        app = Application.builder().token(token).build()
+        app.add_handler(CommandHandler("start", start_command))
+        app.add_handler(CallbackQueryHandler(handle_callback))
 
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    print("🤖 Bot Telegram avviato in background nello stesso processo Web Service!")
+        await app.initialize()
+        await app.start()
+        await app.updater.start_polling()
+        print("✅ [BOT] Bot Telegram avviato con successo e in ascolto 24/7!", flush=True)
+    except Exception as e:
+        print(f"❌ [BOT] Errore critico durante l'avvio del bot: {e}", flush=True)
