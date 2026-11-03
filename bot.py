@@ -2,16 +2,16 @@ import os
 import asyncio
 import requests
 from dotenv import load_dotenv
-load_dotenv(override=True)
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from pdf_generator import generate_district_pdf
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+
+load_dotenv(override=True)
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_command(update: Update, context) -> None:
     welcome_text = (
         "♻️ *Copenhagen Re-Commerce Matrix Bot*\n\n"
         "Ciao! Ti aiuto a trovare la **zona perfetta** a Copenhagen per aprire il tuo "
@@ -27,7 +27,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
-async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_callback(update: Update, context) -> None:
     query = update.callback_query
     await query.answer()
 
@@ -61,66 +61,37 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         try:
             res = requests.get(f"{API_URL}/zones", timeout=5)
             if res.status_code == 200:
-                zones = res.json()[:5]  # Primi 5 distretti
+                zones = res.json()[:5]
                 msg = "📋 *Top 5 Distretti per Potenziale Re-Commerce (CPI):*\n\n"
                 keyboard = []
-                
                 for idx, z in enumerate(zones, start=1):
                     msg += f"*{idx}. {z['name']}* — CPI: `{z['cpi_score']:.1f}`\n"
                     keyboard.append([InlineKeyboardButton(f"📄 PDF {z['name']}", callback_data=f"pdf_{z['name']}")])
-                
                 keyboard.append([InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")])
                 await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         except Exception as e:
             await query.edit_message_text(f"⚠️ Errore nel recupero della lista: {e}")
 
     elif query.data == "menu":
-        welcome_text = (
-            "♻️ *Copenhagen Re-Commerce Matrix Bot*\n\n"
-            "Seleziona un'opzione dal menu principale:"
-        )
+        welcome_text = "♻️ *Copenhagen Re-Commerce Matrix Bot*\n\nSeleziona un'opzione dal menu principale:"
         keyboard = [
             [InlineKeyboardButton("🎯 Qual è la Zona Top?", callback_data="top_zone")],
             [InlineKeyboardButton("📋 Lista Distretti Promettenti", callback_data="list_zones")]
         ]
         await query.edit_message_text(welcome_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
-    elif query.data.startswith("pdf_"):
-        district_name = query.data.replace("pdf_", "")
-        await query.edit_message_text(f"⏳ *Generazione del Report Executive PDF per {district_name} in corso...*", parse_mode="Markdown")
-        try:
-            res = requests.get(f"{API_URL}/zones", timeout=5)
-            if res.status_code == 200:
-                zones = [z for z in res.json() if z["name"] == district_name]
-                if zones:
-                    target_zone = zones[0]
-                    pdf_file = f"Executive_Report_{district_name.replace(' ', '_')}.pdf"
-                    generate_district_pdf(target_zone, filename=pdf_file)
-                    
-                    if os.path.exists(pdf_file):
-                        await query.message.reply_document(
-                            document=open(pdf_file, "rb"),
-                            filename=pdf_file,
-                            caption=f"📄 Ecco il tuo Report Executive B2B per **{district_name}**!",
-                            parse_mode="Markdown"
-                        )
-                        return
-        except Exception as e:
-            await query.message.reply_text(f"⚠️ Errore nella generazione del PDF: {e}")
 
-
-def main() -> None:
-    if TELEGRAM_BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN_HERE" or not TELEGRAM_BOT_TOKEN:
-        print("⚠️ Inserisci un TELEGRAM_BOT_TOKEN valido nel file .env per avviare il Bot Telegram.")
+async def start_telegram_bot():
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token or token == "YOUR_TELEGRAM_BOT_TOKEN_HERE":
+        print("⚠️ TELEGRAM_BOT_TOKEN non impostato. Bot saltato.")
         return
 
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(handle_callback))
 
-    print("🤖 Bot Telegram avviato in ascolto...")
-    app.run_polling()
-
-
-if __name__ == "__main__":
-    main()
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    print("🤖 Bot Telegram avviato in background nello stesso processo Web Service!")

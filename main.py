@@ -1,3 +1,19 @@
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from bot import start_telegram_bot
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Avvio del Bot Telegram nello stesso evento di FastAPI
+    asyncio.create_task(start_telegram_bot())
+    yield
+
+app = FastAPI(
+    title="Copenhagen Re-Commerce Matrix API",
+    lifespan=lifespan
+)
+
 from fastapi import FastAPI, HTTPException, Response
 from typing import List
 import csv
@@ -190,7 +206,7 @@ def simulate_cpi_scenario(weights: CPISimulationRequest):
         import traceback
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
-        
+
 @app.get("/export/csv", tags=["Data Export"])
 def export_zones_csv():
     try:
