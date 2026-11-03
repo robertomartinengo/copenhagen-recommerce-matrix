@@ -7,6 +7,14 @@ import requests
 import streamlit as st
 from pdf_generator import generate_district_pdf
 
+
+# Funzione di utilità per la mappatura sicura delle colonne
+def get_col(df_obj, candidates):
+    for c in candidates:
+        if c in df_obj.columns:
+            return c
+    return None
+
 # Configurazione Pagina
 st.set_page_config(
     page_title="Copenhagen Re-Commerce Matrix",
@@ -66,33 +74,18 @@ if not data:
 
 df = pd.DataFrame(data)
 
-# Mappatura sicura delle colonne
-def get_col(df_obj, candidates):
-    for c in candidates:
-        if c in df_obj.columns:
-            return c
-    return None
+# Mappatura sicura delle colonne (ora il backend fornisce punteggi puri 0-10)
+col_supply_score = get_col(df, ["waste_supply_score", "supply_score"]) or "supply_score"
+col_demo_score = get_col(df, ["demographics_score", "demo_score"]) or "demographics_score"
+col_gap_score = get_col(df, ["market_gap_score", "gap_score"]) or "market_gap_score"
 
-col_supply_score = get_col(df, ["waste_supply_score", "supply_score"]) or "cpi_score"
-col_gap_score = get_col(df, ["market_gap_score", "gap_score"]) or "cpi_score"
 col_gen_z = get_col(df, ["population_gen_z", "gen_z_percentage", "gen_z_share"])
 col_income = get_col(df, ["avg_income_dkk", "avg_annual_income_eur"])
 
-# Calcolo dinamico e matematicamente esatto del Demographics Score
-if "demographics_score" not in df.columns:
-    if w_demo > 0:
-        df["demographics_score"] = (
-            df["cpi_score"] - (df[col_supply_score] * w_supply) - (df[col_gap_score] * w_gap)
-        ) / w_demo
-        df["demographics_score"] = df["demographics_score"].clip(0, 10)
-    else:
-        gz_min, gz_max = df[col_gen_z].min(), df[col_gen_z].max()
-        inc_min, inc_max = df[col_income].min(), df[col_income].max()
-        gz_norm = (df[col_gen_z] - gz_min) / (gz_max - gz_min) * 10 if gz_max > gz_min else 5
-        inc_norm = (df[col_income] - inc_min) / (inc_max - inc_min) * 10 if inc_max > inc_min else 5
-        df["demographics_score"] = (gz_norm * 0.6) + (inc_norm * 0.4)
-
-col_demo_score = "demographics_score"
+# Se mancano i punteggi puri, diamo un fallback di sicurezza
+for col in [col_supply_score, col_demo_score, col_gap_score]:
+    if col not in df.columns:
+        df[col] = 0.0
 
 # Normalizzazione visualizzazione Gen Z
 def format_gen_z(val):
@@ -159,7 +152,7 @@ with col_map:
             fig_map = px.choropleth_mapbox(**map_kwargs)
 
         fig_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=450)
-        st.plotly_chart(fig_map, use_container_width=True)
+        st.plotly_chart(fig_map, width="stretch")
     else:
         st.warning("Mappa poligonale non disponibile (GeoJSON mancante).")
 
@@ -180,7 +173,7 @@ with col_rank:
             col_gap_score: st.column_config.NumberColumn("Market Gap Score", format="%.1f"),
         },
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         height=420
     )
 
@@ -241,7 +234,7 @@ with tab_bars:
         margin=dict(t=20, b=20, l=20, r=20),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
-    st.plotly_chart(fig_grouped, use_container_width=True)
+    st.plotly_chart(fig_grouped, width="stretch")
 
 with tab_radar:
     min_val = max(0, min(val1 + val2) - 1.5)
@@ -277,7 +270,7 @@ with tab_radar:
         height=380,
         margin=dict(t=20, b=20, l=40, r=40)
     )
-    st.plotly_chart(fig_radar, use_container_width=True)
+    st.plotly_chart(fig_radar, width="stretch")
 
 # Deltas numerici
 st.markdown(f"#### 📊 Differenziale Strategico: **{dist1_name}** vs **{dist2_name}**")
@@ -316,7 +309,7 @@ with col_dl1:
         data=csv_data,
         file_name="copenhagen_recommerce_matrix.csv",
         mime="text/csv",
-        use_container_width=True
+        width="stretch"
     )
 
 with col_dl2:
@@ -331,5 +324,5 @@ with col_dl2:
                 data=pdf_bytes,
                 file_name=pdf_filename,
                 mime="application/pdf",
-                use_container_width=True
+                width="stretch"
             )

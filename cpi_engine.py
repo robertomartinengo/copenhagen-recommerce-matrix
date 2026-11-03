@@ -11,10 +11,19 @@ def compute_cpi(
     w_supply: float = 0.40,
     w_demo: float = 0.35,
     w_gap: float = 0.25
-) -> float:
+) -> dict:
+    # 1. Punteggi puri (da mostrare sul Radar Chart in modo stabile)
     supply_score = waste_supply
     demographics_score = calculate_demographics_score(gen_z_pop, income)
     gap_score = market_gap
 
+    # 2. Punteggio CPI finale (influenzato dai cursori)
     cpi = (supply_score * w_supply) + (demographics_score * w_demo) + (gap_score * w_gap)
-    return round(cpi, 2)
+    
+    # 3. Restituiamo un dizionario completo invece di un singolo float
+    return {
+        "cpi_score": round(cpi, 2),
+        "supply_score": round(supply_score, 2),
+        "demographics_score": round(demographics_score, 2),
+        "market_gap_score": round(gap_score, 2)
+    }

@@ -54,12 +54,36 @@ def read_root():
         "supabase_connected": supabase is not None
     }
 
-@app.get("/zones", response_model=List[ZoneResponse], tags=["Core Analytics"])
-def get_zones():
+@app.get("/zones", tags=["Core Analytics"])
+def get_zones(
+    w_supply: float = 0.40,
+    w_demo: float = 0.35,
+    w_gap: float = 0.25
+):
     try:
-        response = supabase.table("copenhagen_zones").select("*").order("cpi_score", desc=True).execute()
-        return response.data
+        response = supabase.table("copenhagen_zones").select("*").execute()
+        zones = response.data
+        
+        # Applichiamo il What-If Engine al volo per restituire i punteggi puri
+        for zone in zones:
+            cpi_data = compute_cpi(
+                float(zone["waste_supply_score"]),
+                int(zone["population_gen_z"]),
+                float(zone["avg_income_dkk"]),
+                float(zone["market_gap_score"]),
+                w_supply=w_supply,
+                w_demo=w_demo,
+                w_gap=w_gap
+            )
+            zone.update(cpi_data)
+            
+        # Ordina dinamicamente in base al nuovo CPI ricalcolato
+        zones.sort(key=lambda x: x["cpi_score"], reverse=True)
+        
+        return zones
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/zones/{district_code}", response_model=ZoneResponse, tags=["Core Analytics"])
@@ -80,14 +104,16 @@ def calculate_all_cpi():
         response = supabase.table("copenhagen_zones").select("*").execute()
         zones = response.data
 
-        results = []
         for zone in zones:
-            score = compute_cpi(
+            # Estraiamo il dizionario completo dal motore
+            cpi_data = compute_cpi(
                 float(zone["waste_supply_score"]),
                 int(zone["population_gen_z"]),
                 float(zone["avg_income_dkk"]),
                 float(zone["market_gap_score"])
             )
+            # Isoliamo il CPI finale per il database
+            score = cpi_data["cpi_score"]
             
             supabase.table("copenhagen_zones").update({"cpi_score": score}).eq("id", zone["id"]).execute()
             results.append({"name": zone["name"], "cpi_score": score})
@@ -118,9 +144,8 @@ def simulate_cpi_scenario(weights: CPISimulationRequest):
 
         original_ranks = {zone["district_code"]: idx + 1 for idx, zone in enumerate(original_zones)}
 
-        simulated_list = []
         for zone in original_zones:
-            sim_score = compute_cpi(
+            cpi_data = compute_cpi(
                 float(zone["waste_supply_score"]),
                 int(zone["population_gen_z"]),
                 float(zone["avg_income_dkk"]),
@@ -129,6 +154,9 @@ def simulate_cpi_scenario(weights: CPISimulationRequest):
                 w_demo=weights.weight_demographics,
                 w_gap=weights.weight_market_gap
             )
+            # Isoliamo il CPI finale simulato
+            sim_score = cpi_data["cpi_score"]
+            
             simulated_list.append({
                 "name": zone["name"],
                 "district_code": zone["district_code"],
