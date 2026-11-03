@@ -1,26 +1,10 @@
 import asyncio
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from bot import start_telegram_bot
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("🚀 [API] Lifespan avviato: avvio del Bot Telegram in background...", flush=True)
-    from bot import start_telegram_bot
-    asyncio.create_task(start_telegram_bot())
-    yield
-    print("🛑 [API] Lifespan concluso.", flush=True)
-
-app = FastAPI(
-    title="Copenhagen Re-Commerce Matrix API",
-    version="1.0.0",
-    lifespan=lifespan  # <-- FONDAMENTALE
-)
-
-from fastapi import FastAPI, HTTPException, Response
-from typing import List
 import csv
 import io
+from contextlib import asynccontextmanager
+from typing import List
+
+from fastapi import FastAPI, HTTPException, Response
 
 from database import supabase
 from cpi_engine import compute_cpi
@@ -31,6 +15,14 @@ from schemas import (
     CPISimulationResponse, 
     SimulatedZoneResult
 )
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🚀 [API] Lifespan avviato: avvio del Bot Telegram in background...", flush=True)
+    from bot import start_telegram_bot
+    asyncio.create_task(start_telegram_bot())
+    yield
+    print("🛑 [API] Lifespan concluso.", flush=True)
 
 tags_metadata = [
     {
@@ -61,7 +53,8 @@ app = FastAPI(
     * **Dynamic 'What-If' Simulation Engine**
     * **B2B CSV Report Export**
     """,
-    openapi_tags=tags_metadata
+    openapi_tags=tags_metadata,
+    lifespan=lifespan  # <-- UNICA ISTANZA CON LIFESPAN
 )
 
 @app.get("/", tags=["Core Analytics"])
@@ -83,7 +76,6 @@ def get_zones(
         response = supabase.table("copenhagen_zones").select("*").execute()
         zones = response.data
         
-        # Applichiamo il What-If Engine al volo per restituire i punteggi puri
         for zone in zones:
             cpi_data = compute_cpi(
                 float(zone["waste_supply_score"]),
@@ -96,9 +88,7 @@ def get_zones(
             )
             zone.update(cpi_data)
             
-        # Ordina dinamicamente in base al nuovo CPI ricalcolato
         zones.sort(key=lambda x: x["cpi_score"], reverse=True)
-        
         return zones
     except Exception as e:
         import traceback
@@ -122,7 +112,7 @@ def calculate_all_cpi():
     try:
         response = supabase.table("copenhagen_zones").select("*").execute()
         zones = response.data
-        results = [] # <-- Inizializzazione corretta della lista
+        results = []
 
         for zone in zones:
             cpi_data = compute_cpi(
@@ -163,7 +153,7 @@ def simulate_cpi_scenario(weights: CPISimulationRequest):
         original_zones = response.data
 
         original_ranks = {zone["district_code"]: idx + 1 for idx, zone in enumerate(original_zones)}
-        simulated_list = [] # <-- Inizializzazione corretta della lista di simulazione
+        simulated_list = []
 
         for zone in original_zones:
             cpi_data = compute_cpi(
