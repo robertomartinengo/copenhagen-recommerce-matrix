@@ -103,16 +103,15 @@ def calculate_all_cpi():
     try:
         response = supabase.table("copenhagen_zones").select("*").execute()
         zones = response.data
+        results = [] # <-- Inizializzazione corretta della lista
 
         for zone in zones:
-            # Estraiamo il dizionario completo dal motore
             cpi_data = compute_cpi(
                 float(zone["waste_supply_score"]),
                 int(zone["population_gen_z"]),
                 float(zone["avg_income_dkk"]),
                 float(zone["market_gap_score"])
             )
-            # Isoliamo il CPI finale per il database
             score = cpi_data["cpi_score"]
             
             supabase.table("copenhagen_zones").update({"cpi_score": score}).eq("id", zone["id"]).execute()
@@ -127,6 +126,8 @@ def calculate_all_cpi():
             "results": results
         }
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/simulate-cpi", response_model=CPISimulationResponse, tags=["Simulation & Scoring"])
@@ -143,6 +144,7 @@ def simulate_cpi_scenario(weights: CPISimulationRequest):
         original_zones = response.data
 
         original_ranks = {zone["district_code"]: idx + 1 for idx, zone in enumerate(original_zones)}
+        simulated_list = [] # <-- Inizializzazione corretta della lista di simulazione
 
         for zone in original_zones:
             cpi_data = compute_cpi(
@@ -154,7 +156,6 @@ def simulate_cpi_scenario(weights: CPISimulationRequest):
                 w_demo=weights.weight_demographics,
                 w_gap=weights.weight_market_gap
             )
-            # Isoliamo il CPI finale simulato
             sim_score = cpi_data["cpi_score"]
             
             simulated_list.append({
@@ -186,8 +187,10 @@ def simulate_cpi_scenario(weights: CPISimulationRequest):
             results=final_results
         )
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
-
+        
 @app.get("/export/csv", tags=["Data Export"])
 def export_zones_csv():
     try:

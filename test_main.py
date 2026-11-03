@@ -21,14 +21,18 @@ def test_demographics_score_calculation():
 def test_compute_cpi_baseline():
     # Nørrebro baseline: waste=9.5, gen_z=14200, income=290000, gap=8.8
     # CPI atteso con pesi 0.40, 0.35, 0.25 -> 8.89
-    cpi = compute_cpi(9.5, 14200, 290000, 8.8)
-    assert cpi == 8.89
+    result = compute_cpi(9.5, 14200, 290000, 8.8)
+    assert isinstance(result, dict)
+    assert result["cpi_score"] == 8.89
 
 def test_compute_cpi_custom_weights():
     # Stessi dati ma con pesi diversi
-    cpi_custom = compute_cpi(9.5, 14200, 290000, 8.8, w_supply=0.20, w_demo=0.20, w_gap=0.60)
-    assert isinstance(cpi_custom, float)
-    assert cpi_custom > 0
+    result_custom = compute_cpi(9.5, 14200, 290000, 8.8, w_supply=0.20, w_demo=0.20, w_gap=0.60)
+    assert isinstance(result_custom, dict)
+    assert result_custom["cpi_score"] > 0
+    assert "supply_score" in result_custom
+    assert "demographics_score" in result_custom
+    assert "market_gap_score" in result_custom
 
 # ---------------------------------------------------------
 # 2. INTEGRATION TESTS (Verifica endpoint API)
