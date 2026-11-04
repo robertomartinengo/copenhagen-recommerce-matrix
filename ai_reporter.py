@@ -1,15 +1,34 @@
 import os
-import google.generativeai as genai
 
-# Configurazione API Key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+from google import genai
+from google.genai import types
+
+# Modello configurabile da variabile d'ambiente (es. su Render) senza toccare il codice.
+DEFAULT_MODEL = "gemini-3.7-flash"
+
+_client = None
+
+
+def _get_client():
+    """Crea il client Gemini al primo uso. Restituisce None se manca la chiave.
+
+    La chiave viene letta qui (e non all'import) cosi' funziona anche se
+    load_dotenv() viene eseguito dopo l'import di questo modulo.
+    """
+    global _client
+    if _client is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            _client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(timeout=20000),  # millisecondi
+            )
+    return _client
 
 
 def generate_executive_narrative(zone_data: dict, business_type: str = "curated_vintage") -> str:
     """
-    Genera un'analisi executive su misura usando Gemini API (100% Free Tier).
+    Genera un'analisi executive su misura usando Gemini API.
     Se la chiave manca o l'API non risponde, attiva un fallback elegante senza interrompere il servizio.
     """
     name = zone_data.get("name", "N/A")
@@ -17,8 +36,9 @@ def generate_executive_narrative(zone_data: dict, business_type: str = "curated_
     gen_z = zone_data.get("population_gen_z", 0)
     avg_income = zone_data.get("avg_income_dkk", 0)
     business_label = zone_data.get("business_profile_label", business_type)
-    
-    if not GEMINI_API_KEY:
+
+    client = _get_client()
+    if client is None:
         return _fallback_narrative(name, cpi, gen_z, avg_income, business_label)
 
     prompt = f"""
@@ -34,21 +54,26 @@ Dati Location:
 
 Requisiti del testo:
 1. Tono executive, analitico e professionale.
-2. Spiega perché la combinazione di questi dati favorisce o penalizza il modello "{business_label}".
+2. Spiega perche la combinazione di questi dati favorisce o penalizza il modello "{business_label}".
 3. Sii sintetico e diretto, senza convenevoli. Zero elenchi puntati, solo testo fluido.
 """
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                max_output_tokens=150,
-                temperature=0.4
-            )
+        response = client.models.generate_content(
+            model=os.getenv("GEMINI_MODEL", DEFAULT_MODEL),
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                # Margine ampio: nei modelli recenti anche il "ragionamento" interno
+                # consuma token e un limite troppo basso puo' dare risposte vuote.
+                # La lunghezza del testo e' controllata dal prompt (max 70 parole).
+                max_output_tokens=1024,
+                temperature=0.4,
+            ),
         )
-        if response.text:
-            return response.text.strip()
+        text = getattr(response, "text", None)
+        if text and text.strip():
+            return text.strip()
+        print("⚠️ [AI REPORTER] Risposta vuota dal modello, uso il fallback.")
     except Exception as e:
         print(f"⚠️ [AI REPORTER] Fallback attivato a causa di: {e}")
 

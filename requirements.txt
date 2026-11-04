@@ -9,5 +9,5 @@ plotly
 python-dotenv
 supabase
 pytest
-google-generativeai
+google-genai
 st-theme
