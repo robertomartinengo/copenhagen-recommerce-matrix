@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS EXECUTIVE (Stondatura Universale) ---
+# --- CSS EXECUTIVE E ADATTAMENTO MAPPA LIGHT/DARK ---
 st.markdown("""
     <style>
     /* Card, Mappa e Tabella totalmente stondate */
@@ -39,6 +39,13 @@ st.markdown("""
         border-right: 1px solid var(--border-color);
     }
     hr { border-color: #6E8E80; opacity: 0.2; }
+
+    /* TRICK CSS: Se Streamlit è in modalità LIGHT, inverte i colori della mappa rendendola scura ed elegante */
+    @media (prefers-color-scheme: light) {
+        div[data-testid="stDeckGlJsonChart"] canvas {
+            filter: invert(90%) hue-rotate(180deg) brightness(95%) contrast(110%);
+        }
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -106,7 +113,6 @@ for zone in raw_zones:
     score = cpi_res["cpi_score"]
     z_data["cpi_score"] = score
     
-    # Iniezione coordinate
     name_lower = z_data["name"].lower().strip()
     if name_lower in COPENHAGEN_COORDS:
         z_data["lat"] = COPENHAGEN_COORDS[name_lower][0]
@@ -181,7 +187,6 @@ if not df.empty:
             bearing=-15
         )
 
-        # Mappa pulita basata su Carto Positron (ottima per entrambi i temi)
         r = pdk.Deck(
             layers=[layer],
             initial_view_state=view_state,
