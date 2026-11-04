@@ -9,3 +9,4 @@ plotly
 python-dotenv
 supabase
 pytest
+google-generativeai
