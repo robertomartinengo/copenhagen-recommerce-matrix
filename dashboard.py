@@ -1,6 +1,5 @@
 import os
 import requests
-import json
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
@@ -19,25 +18,23 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS EXECUTIVE ---
+# --- CSS EXECUTIVE (Stondato e Adattivo) ---
 st.markdown("""
     <style>
-    /* Card delle Metriche */
-    div[data-testid="stMetric"] {
-        background-color: var(--secondary-background-color);
-        border-left: 4px solid #7EAA96;
-        border-top: 1px solid var(--border-color);
-        border-right: 1px solid var(--border-color);
-        border-bottom: 1px solid var(--border-color);
-        padding: 20px;
-        border-radius: 16px !important;
-        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-    }
-    /* Contenitori mappa e tabella stondati */
-    [data-testid="stDeckGlJsonChart"], [data-testid="stDataFrame"] {
+    /* Stondatura globale per tutti i contenitori */
+    div[data-testid="stMetric"], 
+    [data-testid="stDeckGlJsonChart"], 
+    [data-testid="stDataFrame"] {
         border-radius: 16px !important;
         overflow: hidden !important;
-        border: 1px solid var(--border-color);
+    }
+    
+    /* Dettaglio Salvia sulle metriche (adattivo a Light/Dark) */
+    div[data-testid="stMetric"] {
+        border-top: 4px solid #7EAA96;
+        background-color: var(--secondary-background-color);
+        padding: 15px 20px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.05);
     }
     hr {
         border-color: #7EAA96;
@@ -46,7 +43,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- RECUPERO DATI E GEOJSON ---
+# --- RECUPERO DATI API ---
 @st.cache_data(ttl=60)
 def fetch_raw_zones():
     try:
@@ -57,24 +54,19 @@ def fetch_raw_zones():
         print(f"Errore API: {e}")
     return []
 
-@st.cache_data
-def load_geojson():
-    try:
-        with open("copenhagen_districts.geojson", "r") as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-# --- GRADIENTE VERDE SALVIA (Ottimizzato per mappa scura) ---
+# --- GRADIENTE DA BIANCO/GRIGIO A VERDE SALVIA ---
 def get_sage_gradient(score: float):
+    # La mappa va da bianco latte/grigio chiaro (score bassi) a Salvia scuro (score alti)
     if score >= 8.5:
-        return [100, 220, 160, 240]   # Verde Menta/Salvia Luminoso (Top)
+        return [70, 115, 95, 240]     # Verde Salvia Scuro / Intenso
     elif score >= 7.5:
-        return [80, 170, 130, 210]    # Salvia Scuro
+        return [110, 150, 130, 220]   # Verde Salvia Medio
     elif score >= 6.5:
-        return [60, 120, 100, 180]    # Salvia Spento
+        return [160, 185, 175, 200]   # Verde Salvia Chiaro
+    elif score >= 5.5:
+        return [210, 220, 215, 180]   # Grigio/Verdino chiarissimo
     else:
-        return [40, 70, 60, 120]      # Verde scurissimo, quasi trasparente (Basso)
+        return [245, 245, 245, 150]   # Bianco/Grigio neutro (Quasi trasparente)
 
 # --- SIDEBAR: FILTRI DINAMICI ---
 st.sidebar.title("♻️ Re-Commerce Matrix")
@@ -91,52 +83,30 @@ selected_label = st.sidebar.selectbox("Modello di Business:", list(profile_optio
 active_profile_key = profile_options[selected_label]
 
 raw_zones = fetch_raw_zones()
-geojson_data = load_geojson()
 
 # --- CALCOLO CPI DINAMICO ---
 processed_zones = []
-zone_data_map = {} 
-
 for zone in raw_zones:
     cpi_res = calculate_dynamic_cpi(zone, business_type=active_profile_key)
     z_data = zone.copy()
     score = cpi_res["cpi_score"]
     z_data["cpi_score"] = score
     z_data["business_profile_label"] = cpi_res["business_profile_label"]
-    processed_zones.append(z_data)
     
-    # Chiave per il match (tutto minuscolo)
-    norm_name = z_data["name"].lower().strip()
-    zone_data_map[norm_name] = z_data
+    # Moltiplicatore altezza per rendere le differenze nette, partendo da una base minima
+    z_data["elevation"] = max((score - 4.5), 0.5) * 800 
+    z_data["color"] = get_sage_gradient(score)
+    
+    # Coordinate fisse centrali per distretti problematici
+    if "Vesterbro" in z_data["name"]:
+        z_data["lat"], z_data["lon"] = 55.66, 12.53
+    elif "Bispebjerg" in z_data["name"]:
+        z_data["lat"], z_data["lon"] = 55.71, 12.53
+
+    processed_zones.append(z_data)
 
 df = pd.DataFrame(processed_zones)
 df = df.sort_values(by="cpi_score", ascending=False).reset_index(drop=True)
-
-# --- MERGE INTO GEOJSON (Con Match Intelligente dei nomi) ---
-if geojson_data:
-    for feature in geojson_data["features"]:
-        geo_name = feature["properties"]["name"].lower().strip()
-        
-        # Trova una corrispondenza parziale tra i nomi (es. "Vesterbro" in "Vesterbro / Kongens...")
-        matched_score = 0
-        matched_gen_z = 0
-        
-        for api_name, z_info in zone_data_map.items():
-            if geo_name in api_name or api_name in geo_name:
-                matched_score = z_info["cpi_score"]
-                matched_gen_z = z_info["population_gen_z"]
-                break
-        
-        feature["properties"]["cpi_score"] = matched_score
-        feature["properties"]["gen_z"] = matched_gen_z
-        
-        # Altezze enfatizzate e colore
-        if matched_score > 0:
-            feature["properties"]["elevation"] = max((matched_score - 4.5), 0.1) * 1200 
-            feature["properties"]["fill_color"] = get_sage_gradient(matched_score)
-        else:
-            feature["properties"]["elevation"] = 0
-            feature["properties"]["fill_color"] = [30, 30, 30, 100] # Grigio scuro per zone senza dati
 
 # --- HEADER PRINCIPALE ---
 st.title("♻️ Copenhagen Re-Commerce Matrix")
@@ -175,44 +145,44 @@ if not df.empty:
     with col_map:
         st.subheader("📍 Topografia del Valore B2B")
         
-        if geojson_data:
-            layer = pdk.Layer(
-                "GeoJsonLayer",
-                geojson_data,
-                opacity=0.9,
-                stroked=True,
-                filled=True,
-                extruded=True,
-                wireframe=True,
-                get_elevation="properties.elevation",
-                get_fill_color="properties.fill_color",
-                get_line_color=[255, 255, 255, 50],
-                pickable=True,
-                auto_highlight=True,
-            )
+        # Sfondo della mappa basato sul tema di Streamlit 
+        # (Se l'utente ha il tema scuro, usa Dark Matter, altrimenti usa Positron chiaro)
+        theme_map_style = "mapbox://styles/mapbox/dark-v10" if st.get_option("theme.base") == "dark" else "mapbox://styles/mapbox/light-v10"
+        
+        # Layer a Cilindri (ColumnLayer) per evitare blocchi spigolosi
+        layer = pdk.Layer(
+            "ColumnLayer",
+            data=df,
+            get_position=["lon", "lat"],
+            get_elevation="elevation",
+            elevation_scale=1,
+            radius=450, # Raggio fisso e pulito
+            disk_resolution=30, # Rende i cilindri perfettamente tondi
+            get_fill_color="color",
+            pickable=True,
+            auto_highlight=True,
+        )
 
-            view_state = pdk.ViewState(
-                latitude=55.67,
-                longitude=12.55,
-                zoom=10.5, 
-                pitch=55, # Più inclinato per far risaltare il 3D
-                bearing=-10
-            )
+        view_state = pdk.ViewState(
+            latitude=55.675,
+            longitude=12.56,
+            zoom=10.5, 
+            pitch=50, 
+            bearing=-15
+        )
 
-            r = pdk.Deck(
-                layers=[layer],
-                initial_view_state=view_state,
-                tooltip={
-                    "html": "<b>{name}</b><br/>CPI Score: {cpi_score}<br/>Gen Z: {gen_z}",
-                    "style": {"backgroundColor": "#1E293B", "color": "white", "borderRadius": "8px"}
-                },
-                # Mappa di base scura per far brillare il verde salvia
-                map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" 
-            )
+        r = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            tooltip={
+                "html": "<b>{name}</b><br/>CPI Score: {cpi_score}<br/>Gen Z: {population_gen_z}",
+                "style": {"backgroundColor": "#2F3E37", "color": "white", "borderRadius": "8px"}
+            },
+            # Mapbox base (Molto più elegante di Carto)
+            map_style=theme_map_style
+        )
 
-            st.pydeck_chart(r)
-        else:
-            st.error("File GeoJSON non trovato.")
+        st.pydeck_chart(r)
 
     with col_table:
         st.subheader("📊 Classifica Distretti")
@@ -223,11 +193,10 @@ if not df.empty:
         display_df["Gen Z Core"] = display_df["Gen Z Core"].map("{:,.0f}".format)
         display_df["Reddito (DKK)"] = display_df["Reddito (DKK)"].map("{:,.0f}".format)
         
-        # Rimossa l'altezza fissa: ora la tabella abbraccia perfettamente il numero di righe senza spazi neri vuoti
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 else:
-    st.error("⚠️ Nessun distretto recuperato dal database.")
+    st.error("⚠️ Nessun distretto recuperato dal database. Verifica l'API.")
 
 st.divider()
 st.caption("Copenhagen Re-Commerce Matrix B2B Platform — Streamlit Dashboard")
