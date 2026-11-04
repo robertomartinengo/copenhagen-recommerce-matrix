@@ -6,6 +6,7 @@ import pydeck as pdk
 import requests
 import streamlit as st
 from dotenv import load_dotenv
+from streamlit_theme import st_theme
 
 from cpi_engine import calculate_dynamic_cpi
 
@@ -37,17 +38,38 @@ MAP_STYLES = {
 }
 
 
-def get_browser_theme() -> str:
-    """Tema realmente attivo nel browser: 'light' o 'dark'.
-
-    st.context.theme.type richiede Streamlit >= 1.46. Se non disponibile,
-    si ricade su theme.base di config.toml e, in ultima istanza, su 'light'.
-    """
+def _is_dark_hex(color: str):
+    """True/False in base alla luminosita' di un colore #rrggbb, None se non leggibile."""
     try:
-        theme = st.context.theme.type
+        h = color.lstrip("#")
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+        return (0.299 * r + 0.587 * g + 0.114 * b) < 128
     except Exception:
-        theme = st.get_option("theme.base")
-    return theme if theme in MAP_STYLES else "light"
+        return None
+
+
+def get_browser_theme() -> str:
+    """Tema attivo nel browser: 'light' o 'dark'.
+
+    st_theme() e' un componente che si aggiorna anche quando l'utente cambia
+    tema dal menu Settings (st.context.theme.type no: la documentazione di
+    Streamlit avverte che puo' essere sbagliato durante il cambio di tema).
+    Al primo caricamento il componente puo' restituire None: in quel caso si
+    usa st.context.theme.type e poi theme.base di config.toml.
+    """
+    theme = st_theme()
+    if theme:
+        base = theme.get("base")
+        if base in MAP_STYLES:
+            return base
+        dark = _is_dark_hex(str(theme.get("backgroundColor", "")))
+        if dark is not None:
+            return "dark" if dark else "light"
+    try:
+        fallback = st.context.theme.type
+    except Exception:
+        fallback = st.get_option("theme.base")
+    return fallback if fallback in MAP_STYLES else "light"
 
 
 THEME = get_browser_theme()
