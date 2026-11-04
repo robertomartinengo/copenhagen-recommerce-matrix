@@ -102,24 +102,25 @@ col_map, col_table = st.columns([1.3, 1])
 with col_map:
     st.subheader("📍 Mappa 3D dei Distretti (CPI Dinamico)")
     
+    # Layer 3D proporzionato (altezza max ~900m per non uscire dall'inquadratura)
     layer = pdk.Layer(
         "ColumnLayer",
         data=df,
         get_position=["lon", "lat"],
-        get_elevation="cpi_score * 12000",
+        get_elevation="cpi_score * 100",  # Altezza in metri realistica
         elevation_scale=1,
-        radius=800,
-        get_fill_color="[110, 142, 128, 210]",
+        radius=400,                        # Raggio colonna di 400 metri
+        get_fill_color="[110, 142, 128, 220]",
         pickable=True,
         auto_highlight=True,
     )
 
     view_state = pdk.ViewState(
-        latitude=55.6761,
-        longitude=12.5683,
-        zoom=11.3,
-        pitch=45,
-        bearing=0
+        latitude=55.6800,
+        longitude=12.5600,
+        zoom=11.8,
+        pitch=50,
+        bearing=-15
     )
 
     r = pdk.Deck(
