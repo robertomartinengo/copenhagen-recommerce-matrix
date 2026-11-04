@@ -1,90 +1,185 @@
 import pytest
 from fastapi.testclient import TestClient
-from main import app
-from cpi_engine import compute_cpi, calculate_demographics_score
 
+import main
+from main import app
+from cpi_engine import BUSINESS_PROFILES, calculate_cpi, calculate_dynamic_cpi
+
+# Niente "with TestClient(app)": cosi' il lifespan (bot Telegram) non parte nei test.
 client = TestClient(app)
 
-# ---------------------------------------------------------
-# 1. UNIT TESTS (Verifica logica matematica)
-# ---------------------------------------------------------
-
-def test_demographics_score_calculation():
-    # Test valore massimo
-    score = calculate_demographics_score(gen_z_pop=15000, income=450000)
-    assert score == 10.0
-
-    # Test valore intermedio
-    score_mid = calculate_demographics_score(gen_z_pop=7500, income=225000)
-    assert round(score_mid, 1) == 5.0
-
-def test_compute_cpi_baseline():
-    # Nørrebro baseline: waste=9.5, gen_z=14200, income=290000, gap=8.8
-    # CPI atteso con pesi 0.40, 0.35, 0.25 -> 8.89
-    result = compute_cpi(9.5, 14200, 290000, 8.8)
-    assert isinstance(result, dict)
-    assert result["cpi_score"] == 8.89
-
-def test_compute_cpi_custom_weights():
-    # Stessi dati ma con pesi diversi
-    result_custom = compute_cpi(9.5, 14200, 290000, 8.8, w_supply=0.20, w_demo=0.20, w_gap=0.60)
-    assert isinstance(result_custom, dict)
-    assert result_custom["cpi_score"] > 0
-    assert "supply_score" in result_custom
-    assert "demographics_score" in result_custom
-    assert "market_gap_score" in result_custom
 
 # ---------------------------------------------------------
-# 2. INTEGRATION TESTS (Verifica endpoint API)
+# 1. UNIT TESTS: cpi_engine
 # ---------------------------------------------------------
+
+ZONE = {"waste_supply_score": 8.0, "demographics_score": 6.0, "market_gap_score": 4.0}
+
+
+@pytest.mark.parametrize("profile", list(BUSINESS_PROFILES))
+def test_profile_weights_sum_to_one(profile):
+    weights = BUSINESS_PROFILES[profile]["weights"]
+    assert sum(weights.values()) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize(
+    "profile, expected",
+    [
+        ("vintage_premium", 5.6),   # 8*0.2 + 6*0.4 + 4*0.4
+        ("kilo_sale", 6.6),         # 8*0.5 + 6*0.3 + 4*0.2
+        ("upcycling", 6.0),         # 8*0.4 + 6*0.2 + 4*0.4
+        ("curated_vintage", 5.98),  # 8*0.33 + 6*0.33 + 4*0.34
+    ],
+)
+def test_dynamic_cpi_per_profile(profile, expected):
+    result = calculate_dynamic_cpi(ZONE, business_type=profile)
+    assert result["cpi_score"] == pytest.approx(expected, abs=0.01)
+    assert result["business_profile_used"] == profile
+    assert result["business_profile_label"] == BUSINESS_PROFILES[profile]["label"]
+
+
+def test_unknown_profile_falls_back_to_curated_vintage():
+    unknown = calculate_dynamic_cpi(ZONE, business_type="non_esiste")
+    curated = calculate_dynamic_cpi(ZONE, business_type="curated_vintage")
+    assert unknown["cpi_score"] == curated["cpi_score"]
+
+
+def test_missing_scores_default_to_five():
+    result = calculate_dynamic_cpi({}, business_type="kilo_sale")
+    assert result["cpi_score"] == pytest.approx(5.0)
+
+
+def test_demographics_falls_back_to_cpi_score():
+    zone = {"waste_supply_score": 5.0, "market_gap_score": 5.0, "cpi_score": 9.0}
+    result = calculate_dynamic_cpi(zone, business_type="vintage_premium")
+    # 5*0.2 + 9*0.4 + 5*0.4 = 6.6
+    assert result["cpi_score"] == pytest.approx(6.6, abs=0.01)
+
+
+def test_calculate_cpi_returns_float():
+    score = calculate_cpi(ZONE, "kilo_sale")
+    assert isinstance(score, float)
+    assert score == pytest.approx(6.6, abs=0.01)
+
+
+# ---------------------------------------------------------
+# 2. API TESTS: Supabase sostituito da dati finti
+# ---------------------------------------------------------
+
+FAKE_ZONES = [
+    {"name": "Zona A", "waste_supply_score": 10, "demographics_score": 1, "market_gap_score": 1},
+    {"name": "Zona B", "waste_supply_score": 2, "demographics_score": 8, "market_gap_score": 8},
+]
+
+
+class FakeResponse:
+    def __init__(self, data):
+        self.data = data
+
+
+class FakeQuery:
+    def __init__(self, data):
+        self._data = data
+
+    def select(self, *_args, **_kwargs):
+        return self
+
+    def execute(self):
+        return FakeResponse(self._data)
+
+
+class FakeSupabase:
+    def __init__(self, data):
+        self._data = data
+
+    def table(self, _name):
+        return FakeQuery(self._data)
+
+
+@pytest.fixture
+def fake_db(monkeypatch):
+    monkeypatch.setattr(main, "supabase", FakeSupabase(FAKE_ZONES))
+
 
 def test_read_root_endpoint():
     response = client.get("/")
     assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "online"
-    assert data["supabase_connected"] is True
+    assert response.json()["status"] == "online"
 
-def test_get_zones_endpoint():
-    response = client.get("/zones")
+
+def test_zones_sorted_by_cpi_descending(fake_db):
+    response = client.get("/zones", params={"business_type": "vintage_premium"})
     assert response.status_code == 200
     zones = response.json()
-    assert isinstance(zones, list)
-    assert len(zones) == 11
+    scores = [z["cpi_score"] for z in zones]
+    assert scores == sorted(scores, reverse=True)
+    assert all(z["business_profile_used"] == "vintage_premium" for z in zones)
 
-def test_get_single_zone_success():
-    response = client.get("/zones/DK-2200")
+
+def test_business_type_changes_ranking(fake_db):
+    vintage = client.get("/zones", params={"business_type": "vintage_premium"}).json()
+    kilo = client.get("/zones", params={"business_type": "kilo_sale"}).json()
+    assert vintage[0]["name"] == "Zona B"  # 6.8 contro 2.8
+    assert kilo[0]["name"] == "Zona A"     # 5.5 contro 5.0
+
+
+def test_top_zone_endpoint(fake_db):
+    response = client.get("/zones/top", params={"business_type": "kilo_sale"})
     assert response.status_code == 200
-    zone = response.json()
-    assert zone["name"] == "Nørrebro"
+    assert response.json()["name"] == "Zona A"
 
-def test_get_single_zone_not_found():
-    response = client.get("/zones/INVALID-CODE")
-    assert response.status_code == 404
 
-def test_simulation_valid_weights():
-    payload = {
-        "weight_supply": 0.20,
-        "weight_demographics": 0.20,
-        "weight_market_gap": 0.60
-    }
-    response = client.post("/simulate-cpi", json=payload)
+def test_top_zone_empty_returns_empty_dict(monkeypatch):
+    monkeypatch.setattr(main, "supabase", FakeSupabase([]))
+    response = client.get("/zones/top")
     assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "success"
-    assert len(data["results"]) == 11
+    assert response.json() == {}
 
-def test_simulation_invalid_weights_sum():
-    # Somma pesi = 0.80 (deve fallire con 400 Bad Request)
-    payload = {
-        "weight_supply": 0.50,
-        "weight_demographics": 0.20,
-        "weight_market_gap": 0.10
-    }
-    response = client.post("/simulate-cpi", json=payload)
-    assert response.status_code == 400
 
-def test_export_csv_endpoint():
-    response = client.get("/export/csv")
+# ---------------------------------------------------------
+# 3. API TESTS: /leads
+# ---------------------------------------------------------
+
+class FakeLeadsDB:
+    def __init__(self):
+        self.inserted = None
+
+    def table(self, _name):
+        return self
+
+    def insert(self, data):
+        self.inserted = data
+        return self
+
+    def execute(self):
+        return FakeResponse([self.inserted])
+
+
+LEAD = {
+    "telegram_user_id": 123456,
+    "full_name": "Mario Rossi",
+    "email": "mario@example.com",
+}
+
+
+def test_create_lead_success(monkeypatch):
+    db = FakeLeadsDB()
+    monkeypatch.setattr(main, "supabase", db)
+    response = client.post("/leads", json=LEAD)
     assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/csv")
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["data"][0]["full_name"] == "Mario Rossi"
+    assert db.inserted["telegram_user_id"] == 123456
+
+
+def test_create_lead_missing_field_returns_422():
+    payload = {k: v for k, v in LEAD.items() if k != "email"}
+    response = client.post("/leads", json=payload)
+    assert response.status_code == 422
+
+
+def test_create_lead_without_database_returns_500(monkeypatch):
+    monkeypatch.setattr(main, "supabase", None)
+    response = client.post("/leads", json=LEAD)
+    assert response.status_code == 500

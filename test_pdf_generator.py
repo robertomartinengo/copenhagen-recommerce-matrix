@@ -1,9 +1,8 @@
 import os
 import pytest
-from pdf_generator import generate_district_pdf
+from pdf_generator import generate_executive_pdf
 
-
-def test_generate_district_pdf_success(tmp_path):
+def test_generate_executive_pdf_success(tmp_path):
     sample_district = {
         "name": "Nørrebro",
         "cpi_score": 8.9,
@@ -16,7 +15,7 @@ def test_generate_district_pdf_success(tmp_path):
     }
     
     output_file = os.path.join(tmp_path, "test_report.pdf")
-    generated_path = generate_district_pdf(sample_district, filename=output_file)
+    generated_path = generate_executive_pdf(sample_district, filename=output_file)
     
     assert os.path.exists(generated_path)
     assert os.path.getsize(generated_path) > 0
