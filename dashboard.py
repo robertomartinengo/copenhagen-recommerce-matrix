@@ -18,10 +18,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS EXECUTIVE E ADATTAMENTO MAPPA LIGHT/DARK ---
+# --- CSS EXECUTIVE (Stondatura Universale) ---
 st.markdown("""
     <style>
-    /* Card, Mappa e Tabella totalmente stondate */
     div[data-testid="stMetric"], 
     div[data-testid="stDeckGlJsonChart"], 
     div[data-testid="stDataFrame"] {
@@ -39,13 +38,6 @@ st.markdown("""
         border-right: 1px solid var(--border-color);
     }
     hr { border-color: #6E8E80; opacity: 0.2; }
-
-    /* TRICK CSS: Se Streamlit è in modalità LIGHT, inverte i colori della mappa rendendola scura ed elegante */
-    @media (prefers-color-scheme: light) {
-        div[data-testid="stDeckGlJsonChart"] canvas {
-            filter: invert(90%) hue-rotate(180deg) brightness(95%) contrast(110%);
-        }
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -187,41 +179,12 @@ if not df.empty:
             bearing=-15
         )
 
-        # --- MAPPA 3D E TABELLA ---
-    col_map, col_table = st.columns([1.5, 1])
-
-    with col_map:
-        st.subheader("📍 Topografia del Valore B2B")
-        
-        layer = pdk.Layer(
-            "ColumnLayer",
-            data=df,
-            get_position=["lon", "lat"],
-            get_elevation="elevation",
-            elevation_scale=1,
-            radius=400,          
-            disk_resolution=40,  
-            get_fill_color="fill_color",
-            pickable=True,
-            auto_highlight=True,
-        )
-
-        view_state = pdk.ViewState(
-            latitude=55.675,
-            longitude=12.56,
-            zoom=10.5, 
-            pitch=50, 
-            bearing=-15
-        )
-
-        # Rilevamento dinamico del tema di Streamlit per invertire lo stile della mappa e creare contrasto
+        # Corrispondenza speculare: Tema scuro -> Mappa scura; Tema chiaro -> Mappa chiara
         current_theme = st.get_option("theme.base")
         if current_theme == "dark":
-            # Browser scuro -> Mappa chiara (Positron)
-            dynamic_map_style = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+            map_style_url = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
         else:
-            # Browser chiaro -> Mappa scura (Dark Matter)
-            dynamic_map_style = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+            map_style_url = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
 
         r = pdk.Deck(
             layers=[layer],
@@ -230,7 +193,7 @@ if not df.empty:
                 "html": "<b>{name}</b><br/>CPI Score: {cpi_score}<br/>Gen Z: {population_gen_z}",
                 "style": {"backgroundColor": "#6E8E80", "color": "white", "borderRadius": "8px"}
             },
-            map_style=dynamic_map_style
+            map_style=map_style_url
         )
 
         st.pydeck_chart(r)
@@ -244,7 +207,8 @@ if not df.empty:
         display_df["Gen Z Core"] = display_df["Gen Z Core"].map("{:,.0f}".format)
         display_df["Reddito (DKK)"] = display_df["Reddito (DKK)"].map("{:,.0f}".format)
         
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        # Altezza fissa di 420px per mostrare tutti i distretti senza scrolling interno
+        st.dataframe(display_df, height=420, use_container_width=True, hide_index=True)
 
 else:
     st.error("⚠️ Nessun distretto elaborato. Verifica la connessione API.")
