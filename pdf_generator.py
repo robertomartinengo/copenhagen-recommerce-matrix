@@ -3,6 +3,21 @@ from fpdf import FPDF
 from typing import Tuple
 from ai_reporter import generate_executive_narrative
 
+def _clean_text(text: str) -> str:
+    """Converte e pulisce il testo rimuovendo caratteri non supportati da FPDF standard."""
+    if not text:
+        return ""
+    # Sostituisce trattini speciali o apostrofi tipografici con varianti sicure
+    cleaned = (
+        text.replace("—", "-")
+            .replace("–", "-")
+            .replace("“", '"')
+            .replace("”", '"')
+            .replace("‘", "'")
+            .replace("’", "'")
+    )
+    return cleaned.encode("latin-1", "ignore").decode("latin-1")
+
 class B2BExecutivePDF(FPDF):
     def __init__(self):
         super().__init__(orientation="P", unit="mm", format="A4")
@@ -69,7 +84,7 @@ def generate_executive_pdf(zone_data: dict, filename: str = "Executive_Report_De
     COLOR_BAR_BG = (243, 244, 246)      
     
     # Dati zona
-    name = zone_data.get("name", "N/A").upper()
+    name = _clean_text(zone_data.get("name", "N/A").upper())
     cpi = float(zone_data.get("cpi_score", 0))
     gen_z = zone_data.get("population_gen_z", 0)
     avg_income = zone_data.get("avg_income_dkk", 0)
@@ -197,11 +212,14 @@ def generate_executive_pdf(zone_data: dict, filename: str = "Executive_Report_De
     # --- RACCOMANDAZIONE DALL'AI NARRATIVE ENGINE ---
     y_rec = y_bar + 10
     
-    rec_text = generate_executive_narrative(
+    raw_narrative = generate_executive_narrative(
         zone_data, 
         business_type=zone_data.get("business_profile_used", "curated_vintage")
     )
-    rec_title = f"Analisi Strategica B2B — {zone_data.get('business_profile_label', 'Re-Commerce')}"
+    rec_text = _clean_text(raw_narrative)
+    
+    raw_title = f"Analisi Strategica B2B — {zone_data.get('business_profile_label', 'Re-Commerce')}"
+    rec_title = _clean_text(raw_title)
 
     pdf.set_fill_color(*COLOR_SALVIA_LIGHT)
     pdf.rounded_rect(20, y_rec, 170, 42, r=4, style="F")
