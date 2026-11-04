@@ -42,7 +42,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- COORDINATE DI BACKUP (Risolve il problema delle colonne mancanti) ---
+# --- COORDINATE DI BACKUP (Tutti i distretti di Copenaghen) ---
 COPENHAGEN_COORDS = {
     "nørrebro": (55.6946, 12.5487),
     "vesterbro / kongens enghave": (55.6600, 12.5300),
@@ -80,7 +80,7 @@ def get_sage_gradient(score: float):
     elif score >= 6.0:
         return [210, 225, 215, 255]   # Grigio-Verdino Sbiadito
     else:
-        return [245, 248, 246, 255]   # Bianco Latte / Quasi Trasparente
+        return [235, 240, 238, 255]   # Bianco Latte / Neutro
 
 # --- SIDEBAR: FILTRI DINAMICI ---
 st.sidebar.title("♻️ Re-Commerce Matrix")
@@ -106,17 +106,15 @@ for zone in raw_zones:
     score = cpi_res["cpi_score"]
     z_data["cpi_score"] = score
     
-    # Iniezione forzata delle coordinate se mancano nel DB
+    # Iniezione coordinate
     name_lower = z_data["name"].lower().strip()
     if name_lower in COPENHAGEN_COORDS:
         z_data["lat"] = COPENHAGEN_COORDS[name_lower][0]
         z_data["lon"] = COPENHAGEN_COORDS[name_lower][1]
     
-    # Se per qualche motivo lat e lon sono assenti o a zero, saltiamo
     if z_data.get("lat", 0) == 0:
         continue
 
-    # Altezza esagerata in base al punteggio per distacco visivo
     z_data["elevation"] = max((score - 4.5), 0.5) * 800 
     z_data["fill_color"] = get_sage_gradient(score)
     processed_zones.append(z_data)
@@ -162,15 +160,14 @@ if not df.empty:
     with col_map:
         st.subheader("📍 Topografia del Valore B2B")
         
-        # Livello a colonne cilindriche (rotonde e lisce)
         layer = pdk.Layer(
             "ColumnLayer",
             data=df,
             get_position=["lon", "lat"],
             get_elevation="elevation",
             elevation_scale=1,
-            radius=400,          # Raggio proporzionato
-            disk_resolution=40,  # Alta risoluzione = cilindri perfettamente rotondi
+            radius=400,          
+            disk_resolution=40,  
             get_fill_color="fill_color",
             pickable=True,
             auto_highlight=True,
@@ -184,8 +181,7 @@ if not df.empty:
             bearing=-15
         )
 
-        # Rimosso il map_style fisso. 
-        # Lasciandolo a "None" permettiamo a Streamlit di iniettare il suo tema!
+        # Mappa pulita basata su Carto Positron (ottima per entrambi i temi)
         r = pdk.Deck(
             layers=[layer],
             initial_view_state=view_state,
@@ -193,11 +189,10 @@ if not df.empty:
                 "html": "<b>{name}</b><br/>CPI Score: {cpi_score}<br/>Gen Z: {population_gen_z}",
                 "style": {"backgroundColor": "#6E8E80", "color": "white", "borderRadius": "8px"}
             },
-            map_style=None
+            map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
         )
 
-        # Il parametro theme="streamlit" sincronizza magicamente la mappa con il tema Light/Dark
-        st.pydeck_chart(r, theme="streamlit")
+        st.pydeck_chart(r)
 
     with col_table:
         st.subheader("📊 Classifica Distretti")
