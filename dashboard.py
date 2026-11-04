@@ -187,6 +187,42 @@ if not df.empty:
             bearing=-15
         )
 
+        # --- MAPPA 3D E TABELLA ---
+    col_map, col_table = st.columns([1.5, 1])
+
+    with col_map:
+        st.subheader("📍 Topografia del Valore B2B")
+        
+        layer = pdk.Layer(
+            "ColumnLayer",
+            data=df,
+            get_position=["lon", "lat"],
+            get_elevation="elevation",
+            elevation_scale=1,
+            radius=400,          
+            disk_resolution=40,  
+            get_fill_color="fill_color",
+            pickable=True,
+            auto_highlight=True,
+        )
+
+        view_state = pdk.ViewState(
+            latitude=55.675,
+            longitude=12.56,
+            zoom=10.5, 
+            pitch=50, 
+            bearing=-15
+        )
+
+        # Rilevamento dinamico del tema di Streamlit per invertire lo stile della mappa e creare contrasto
+        current_theme = st.get_option("theme.base")
+        if current_theme == "dark":
+            # Browser scuro -> Mappa chiara (Positron)
+            dynamic_map_style = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+        else:
+            # Browser chiaro -> Mappa scura (Dark Matter)
+            dynamic_map_style = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+
         r = pdk.Deck(
             layers=[layer],
             initial_view_state=view_state,
@@ -194,7 +230,7 @@ if not df.empty:
                 "html": "<b>{name}</b><br/>CPI Score: {cpi_score}<br/>Gen Z: {population_gen_z}",
                 "style": {"backgroundColor": "#6E8E80", "color": "white", "borderRadius": "8px"}
             },
-            map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+            map_style=dynamic_map_style
         )
 
         st.pydeck_chart(r)
