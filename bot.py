@@ -186,9 +186,11 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     try:
         async with httpx.AsyncClient() as client:
-            await client.post(f"{API_URL}/leads", json=lead_payload, timeout=10.0)
+            print(f"📤 [LEAD] Invio lead a {API_URL}/leads con dati: {lead_payload}", flush=True)
+            res = await client.post(f"{API_URL}/leads", json=lead_payload, timeout=10.0)
+            print(f"📥 [LEAD] Risposta API: {res.status_code} - {res.text}", flush=True)
     except Exception as e:
-        print(f"⚠️ [LEAD ERR] Impossibile salvare il lead su Supabase: {e}")
+        print(f"❌ [LEAD ERR] Impossibile salvare il lead su Supabase: {e}", flush=True)
 
     # 2. Genera ed invia il PDF
     await update.message.reply_text("✅ *Dati registrati con successo!* Generazione del Report PDF B2B in corso...", parse_mode="Markdown")
