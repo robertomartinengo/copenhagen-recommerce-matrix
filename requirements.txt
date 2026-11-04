@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-streamlit
+streamlit>=1.46.0
 python-telegram-bot
 fpdf2
 requests
