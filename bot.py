@@ -31,35 +31,50 @@ async def handle_callback(update: Update, context) -> None:
     query = update.callback_query
     await query.answer()
 
+    # FIX: "if" al posto di "elif" per evitare SyntaxError
     if query.data == "top_zone":
+        keyboard = [
+            [InlineKeyboardButton("💎 Vintage Premium & Lusso", callback_data="calc_top:vintage_premium")],
+            [InlineKeyboardButton("⚖️ Kilo Sale & Thrift Massivo", callback_data="calc_top:kilo_sale")],
+            [InlineKeyboardButton("✂️ Upcycling & Laboratorio", callback_data="calc_top:upcycling")],
+            [InlineKeyboardButton("🛍️ Curated Vintage & Pop-Up", callback_data="calc_top:curated_vintage")],
+            [InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")]
+        ]
+        text = "🎯 *Seleziona il tuo Modello di Business*\n\nIl punteggio CPI verrà ricalcolato ricalibrando i pesi su misura per la tua attività:"
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif query.data.startswith("calc_top:"):
+        b_type = query.data.split(":")[1]
+        
         try:
+            # FIX: Uso di httpx asincrono anziché requests
             async with httpx.AsyncClient() as client:
-                res = await client.get(f"{API_URL}/zones", timeout=10.0)
+                res = await client.get(f"{API_URL}/zones/top?business_type={b_type}", timeout=10.0)
             
-            if res.status_code == 200 and len(res.json()) > 0:
-                zones = res.json()
-                zones_sorted = sorted(zones, key=lambda x: float(x.get("cpi_score", 0)), reverse=True)
-                top = zones_sorted[0]
-                district_name = top["name"]
-                cpi = float(top["cpi_score"])
-                gen_z = top.get("population_gen_z", top.get("gen_z_percentage", 0))
-                gen_z_text = f"{gen_z:,.0f} residenti" if gen_z > 100 else f"{gen_z:.1f}%"
+            if res.status_code == 200:
+                data = res.json()
+                name = data.get("name", "N/A")
+                cpi = float(data.get("cpi_score", 0))
+                gen_z = data.get("population_gen_z", 0)
+                profile_label = data.get("business_profile_label", b_type)
                 
-                msg = (
-                    f"🏆 *La Zona Migliore in Assoluto è {district_name}!*\n\n"
-                    f"📊 *Punteggio CPI:* `{cpi:.1f} / 10`\n"
-                    f"👥 *Target Gen Z:* `{gen_z_text}`\n"
-                    f"💡 *Perché conviene:* Altissimo afflusso di materiale tessile usabile "
-                    f"e un'ampia community di giovani acquirenti.\n\n"
-                    f"Vuoi il *Report Executive PDF* completo per la tua banca/investitori?"
+                text = (
+                    f"🏆 *TOP ZONA CONSIGLIATA*\n"
+                    f"Per: *{profile_label}*\n\n"
+                    f"📍 *Distretto:* {name}\n"
+                    f"📊 *CPI Personalizzato:* {cpi:.2f} / 10.0\n"
+                    f"👥 *Target Gen Z:* {gen_z:,.0f} residenti\n\n"
+                    f"Scarica il report PDF per l'analisi completa:"
                 )
+                
                 keyboard = [
-                    [InlineKeyboardButton(f"📄 Scarica Report PDF ({district_name})", callback_data=f"pdf_{district_name}")],
-                    [InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")]
+                    [InlineKeyboardButton("📄 Genera Report PDF", callback_data=f"pdf:{name}:{b_type}")],
+                    [InlineKeyboardButton("⬅️ Cambia Modello", callback_data="top_zone")],
+                    [InlineKeyboardButton("🏠 Menu Principale", callback_data="menu")]
                 ]
-                await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+                await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         except Exception as e:
-            await query.edit_message_text(f"⚠️ Impossibile connettersi al backend: {e}")
+            await query.edit_message_text(f"⚠️ Errore nel calcolo del CPI dinamico: {e}")
 
     elif query.data == "list_zones":
         try:
@@ -75,18 +90,22 @@ async def handle_callback(update: Update, context) -> None:
                 for idx, z in enumerate(zones, start=1):
                     cpi_val = float(z.get('cpi_score', 0))
                     msg += f"*{idx}. {z['name']}* — CPI: `{cpi_val:.1f}`\n"
-                    keyboard.append([InlineKeyboardButton(f"📄 PDF {z['name']}", callback_data=f"pdf_{z['name']}")])
+                    keyboard.append([InlineKeyboardButton(f"📄 PDF {z['name']}", callback_data=f"pdf:{z['name']}:curated_vintage")])
                 keyboard.append([InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")])
                 await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         except Exception as e:
             await query.edit_message_text(f"⚠️ Errore nel recupero della lista: {e}")
 
-    elif query.data.startswith("pdf_"):
-        district_name = query.data.replace("pdf_", "")
+    # FIX: Gestore unificato per il download PDF (supporta sia pdf_ che pdf:)
+    elif query.data.startswith("pdf:") or query.data.startswith("pdf_"):
+        parts = query.data.replace("pdf_", "").replace("pdf:", "").split(":")
+        district_name = parts[0]
+        b_type = parts[1] if len(parts) > 1 else "curated_vintage"
+        
         await query.message.reply_text(f"⏳ Generazione del Report PDF per *{district_name}* in corso...", parse_mode="Markdown")
         try:
             async with httpx.AsyncClient() as client:
-                res = await client.get(f"{API_URL}/zones", timeout=10.0)
+                res = await client.get(f"{API_URL}/zones?business_type={b_type}", timeout=10.0)
             
             if res.status_code == 200:
                 zones = res.json()
@@ -122,6 +141,7 @@ async def handle_callback(update: Update, context) -> None:
             [InlineKeyboardButton("📋 Lista Distretti Promettenti", callback_data="list_zones")]
         ]
         await query.edit_message_text(welcome_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+
 
 async def start_telegram_bot():
     try:

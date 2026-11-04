@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
 from dotenv import load_dotenv
+from cpi_engine import calculate_custom_cpi, BUSINESS_PROFILES
 
 # Importiamo la funzione di avvio del bot
 from bot import start_telegram_bot
@@ -43,23 +44,19 @@ def read_root():
 
 
 @app.get("/zones")
-def get_zones():
-    try:
-        if not supabase:
-            raise Exception("Supabase client non inizializzato.")
-        
-        response = supabase.table("copenhagen_zones").select("*").execute()
-        if not response.data:
-            raise Exception("Tabella vuota o dati non trovati.")
-        return response.data
-    except Exception as e:
-        return [
-            {
-                "name": "Nørrebro",
-                "cpi_score": 8.9,
-                "waste_supply_score": 9.1,
-                "demographics_score": 8.8,
-                "market_gap_score": 8.7,
-                "population_gen_z": 14200
-            }
-        ]
+def get_zones(business_type: str = "curated_vintage"):
+    # Recupera i dati da Supabase
+    response = supabase.table("copenhagen_zones").select("*").execute()
+    zones = response.data
+    
+    # Ricalcola il CPI dinamico per ogni zona in base al profilo
+    updated_zones = [calculate_custom_cpi(z, business_type=business_type) for z in zones]
+    
+    # Ordina decrescente per il nuovo CPI dinamico
+    updated_zones.sort(key=lambda x: float(x.get("cpi_score", 0)), reverse=True)
+    return updated_zones
+
+@app.get("/zones/top")
+def get_top_zone(business_type: str = "curated_vintage"):
+    zones = get_zones(business_type=business_type)
+    return zones[0] if zones else {}
