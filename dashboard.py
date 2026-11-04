@@ -27,7 +27,6 @@ def fetch_raw_zones():
     except Exception:
         pass
     
-    # Fallback dataset se l'API non risponde
     return [
         {"name": "Nørrebro", "lat": 55.6946, "lon": 12.5487, "population_gen_z": 14200, "avg_income_dkk": 310000, "waste_supply_score": 8.5, "demographics_score": 9.0, "market_gap_score": 8.8},
         {"name": "Vesterbro", "lat": 55.6698, "lon": 12.5419, "population_gen_z": 12800, "avg_income_dkk": 340000, "waste_supply_score": 8.0, "demographics_score": 8.5, "market_gap_score": 8.2},
@@ -35,6 +34,17 @@ def fetch_raw_zones():
         {"name": "Østerbro", "lat": 55.7032, "lon": 12.5746, "population_gen_z": 9200, "avg_income_dkk": 390000, "waste_supply_score": 7.0, "demographics_score": 7.5, "market_gap_score": 7.2},
         {"name": "Amager Vest", "lat": 55.6432, "lon": 12.5857, "population_gen_z": 11000, "avg_income_dkk": 350000, "waste_supply_score": 7.5, "demographics_score": 8.0, "market_gap_score": 7.8}
     ]
+
+# Funzione per assegnare un colore dinamico in base al punteggio CPI
+def assign_cpi_color(score: float):
+    if score >= 8.5:
+        return [34, 197, 94, 220]    # Verde Brillante (Top)
+    elif score >= 8.0:
+        return [59, 130, 246, 220]   # Blu
+    elif score >= 7.2:
+        return [234, 179, 8, 220]    # Giallo / Ambra
+    else:
+        return [239, 68, 68, 220]    # Rosso (Basso)
 
 # --- SIDEBAR: FILTRI DINAMICI B2B ---
 st.sidebar.title("♻️ Re-Commerce Matrix")
@@ -52,13 +62,19 @@ active_profile_key = profile_options[selected_label]
 
 raw_zones = fetch_raw_zones()
 
-# --- CALCOLO DINAMICO CPI ---
+# --- CALCOLO DINAMICO CPI & COLORE ---
 processed_zones = []
 for zone in raw_zones:
     cpi_res = calculate_dynamic_cpi(zone, business_type=active_profile_key)
     z_data = zone.copy()
-    z_data["cpi_score"] = cpi_res["cpi_score"]
+    c_score = cpi_res["cpi_score"]
+    z_data["cpi_score"] = c_score
     z_data["business_profile_label"] = cpi_res["business_profile_label"]
+    
+    # Calcolo altezza accentuata e colore dinamico
+    z_data["elevation"] = max((c_score - 5.0), 0.5) * 350
+    z_data["color"] = assign_cpi_color(c_score)
+    
     processed_zones.append(z_data)
 
 df = pd.DataFrame(processed_zones)
@@ -102,15 +118,15 @@ col_map, col_table = st.columns([1.3, 1])
 with col_map:
     st.subheader("📍 Mappa 3D dei Distretti (CPI Dinamico)")
     
-    # Layer 3D proporzionato (altezza max ~900m per non uscire dall'inquadratura)
+    # Layer 3D con basemap aperta (Carto Positron)
     layer = pdk.Layer(
         "ColumnLayer",
         data=df,
         get_position=["lon", "lat"],
-        get_elevation="cpi_score * 100",  # Altezza in metri realistica
+        get_elevation="elevation",
         elevation_scale=1,
-        radius=400,                        # Raggio colonna di 400 metri
-        get_fill_color="[110, 142, 128, 220]",
+        radius=350,
+        get_fill_color="color",
         pickable=True,
         auto_highlight=True,
     )
@@ -118,7 +134,7 @@ with col_map:
     view_state = pdk.ViewState(
         latitude=55.6800,
         longitude=12.5600,
-        zoom=11.8,
+        zoom=11.5,
         pitch=50,
         bearing=-15
     )
@@ -127,7 +143,7 @@ with col_map:
         layers=[layer],
         initial_view_state=view_state,
         tooltip={"text": "Distretto: {name}\nCPI Score: {cpi_score}\nTarget Gen Z: {population_gen_z}"},
-        map_style="mapbox://styles/mapbox/light-v9"
+        map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
     )
 
     st.pydeck_chart(r)
