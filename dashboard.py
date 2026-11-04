@@ -1,13 +1,12 @@
-import json
 import os
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import requests
 import streamlit as st
-from pdf_generator import generate_district_pdf
+import pydeck as pdk
+import plotly.express as px
+import requests
+from pdf_generator import generate_executive_pdf
 
-# Configurazione Pagina
+# 1. Configurazione Pagina
 st.set_page_config(
     page_title="Copenhagen Re-Commerce Matrix",
     page_icon="♻️",
@@ -15,321 +14,179 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+API_URL = "https://copenhagen-recommerce-matrix.onrender.com"
 
-# Funzione di utilità per la mappatura sicura delle colonne
-def get_col(df_obj, candidates):
-    for c in candidates:
-        if c in df_obj.columns:
-            return c
-    return None
+# 2. Custom CSS (Rimosso lo sfondo fisso, mantenuto solo lo stile per bottoni e KPI)
+st.markdown("""
+    <style>
+    /* Metric Cards */
+    div[data-testid="stMetricValue"] {
+        font-size: 28px;
+        font-weight: 700;
+        color: #6E8E80 !important;
+    }
+    div[data-testid="stMetricLabel"] {
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    /* Buttons */
+    .stButton>button {
+        background-color: #6E8E80;
+        color: white;
+        border-radius: 8px;
+        border: none;
+        padding: 8px 16px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        background-color: #587367;
+        color: white;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# Caricamento GeoJSON
-@st.cache_data
-def load_geojson():
-    geojson_path = "copenhagen_districts.geojson"
-    if os.path.exists(geojson_path):
-        with open(geojson_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return None
 
-geojson_data = load_geojson()
-
-# Intestazione Dashboard
-st.title("♻️ Copenhagen Re-Commerce Matrix")
-st.caption("B2B Location Intelligence & Circular Economy Decision Support Platform")
-
-# ---------------------------------------------------------
-# SIDEBAR: What-If Engine & Filtri
-# ---------------------------------------------------------
-st.sidebar.header("⚙️ What-If Simulation Engine")
-st.sidebar.markdown("Regola i pesi per ricalcolare il **CPI** in tempo reale:")
-
-w_supply = st.sidebar.slider("Peso Supply Rifiuti Tessili (w1)", 0.0, 1.0, 0.40, 0.05)
-w_demo = st.sidebar.slider("Peso Demografia Gen Z / Reddito (w2)", 0.0, 1.0, 0.35, 0.05)
-w_gap = st.sidebar.slider("Peso Vuoto di Mercato (w3)", 0.0, 1.0, 0.25, 0.05)
-
-total_weight = w_supply + w_demo + w_gap
-if abs(total_weight - 1.0) > 0.01:
-    st.sidebar.warning(f"⚠️ Somma pesi: {total_weight:.2f}. Consigliato 1.00.")
-
-st.sidebar.divider()
-st.sidebar.header("🔍 Filtri Analitici")
-min_cpi = st.sidebar.slider("Soglia Minima CPI Score", 0.0, 10.0, 0.0, 0.5)
-
-# Fetch Dati da API Backend
+# 3. Caricamento Dati
 @st.cache_data(ttl=60)
-def fetch_zones(w1: float, w2: float, w3: float):
+def load_zones_data():
     try:
-        response = requests.get(
-            f"{API_URL}/zones",
-            params={"w_supply": w1, "w_demo": w2, "w_gap": w3},
-            timeout=10
-        )
+        response = requests.get(f"{API_URL}/zones", timeout=15.0)
         if response.status_code == 200:
-            return response.json()
-        return []
+            df = pd.DataFrame(response.json())
+            for col in ["cpi_score", "waste_supply_score", "demographics_score", "market_gap_score"]:
+                if col in df.columns:
+                    df[col] = df[col].astype(float)
+            return df
     except Exception as e:
-        st.error(f"Errore di connessione al Backend API ({API_URL}): {e}")
-        return []
+        st.sidebar.warning(f"⚠️ Impossibile connettersi all'API. Uso dati locali. ({e})")
+    
+    # Fallback
+    fallback = [
+        {"name": "Nørrebro", "cpi_score": 8.89, "population_gen_z": 14200, "avg_income_dkk": 290000},
+        {"name": "Vesterbro / Kongens Enghave", "cpi_score": 7.58, "population_gen_z": 9800, "avg_income_dkk": 340000},
+    ]
+    return pd.DataFrame(fallback)
 
-raw_data = fetch_zones(w_supply, w_demo, w_gap)
-if not raw_data:
-    st.warning("Nessun dato disponibile. Verificare che il backend FastAPI sia attivo.")
-    st.stop()
+df = load_zones_data()
 
-df = pd.DataFrame(raw_data)
+# Coordinate geografiche
+DISTRICT_COORDS = {
+    "Indre By": {"lat": 55.6800, "lon": 12.5800},
+    "Nørrebro": {"lat": 55.6888, "lon": 12.5562},
+    "Vesterbro / Kongens Enghave": {"lat": 55.6667, "lon": 12.5450},
+    "Østerbro": {"lat": 55.7000, "lon": 12.5700},
+    "Amager Vest": {"lat": 55.6400, "lon": 12.5800},
+    "Amager Øst": {"lat": 55.6550, "lon": 12.6100},
+    "Valby": {"lat": 55.6580, "lon": 12.5150},
+    "Bispebjerg": {"lat": 55.7150, "lon": 12.5300},
+    "Vanløse": {"lat": 55.6880, "lon": 12.4880},
+    "Brønshøj-Husum": {"lat": 55.7050, "lon": 12.4850},
+    "Frederiksberg": {"lat": 55.6780, "lon": 12.5320}
+}
 
-# Mappatura Colonne
-col_supply_score = get_col(df, ["waste_supply_score", "supply_score"]) or "supply_score"
-col_demo_score = get_col(df, ["demographics_score", "demo_score"]) or "demographics_score"
-col_gap_score = get_col(df, ["market_gap_score", "gap_score"]) or "market_gap_score"
-col_gen_z = get_col(df, ["population_gen_z", "gen_z_percentage"])
-col_income = get_col(df, ["avg_income_dkk", "avg_annual_income_eur"])
+if "lat" not in df.columns or "lon" not in df.columns:
+    df["lat"] = df["name"].map(lambda x: DISTRICT_COORDS.get(x, {}).get("lat", 55.6761))
+    df["lon"] = df["name"].map(lambda x: DISTRICT_COORDS.get(x, {}).get("lon", 12.5683))
 
-# Gestione Ranks e Filtro Minimo
-df["rank"] = df["cpi_score"].rank(ascending=False, method="min").astype(int)
-df_filtered = df[df["cpi_score"] >= min_cpi].sort_values("rank")
+# --- SIDEBAR ---
+st.sidebar.image("https://img.icons8.com/isometric/100/recycle.png", width=60)
+st.sidebar.title("Filtri Strategici")
 
-if df_filtered.empty:
-    st.warning("Nessun distretto soddisfa i criteri del filtro impostato.")
-    st.stop()
+min_cpi = st.sidebar.slider("Punteggio CPI Minimo", 0.0, 10.0, 5.0, 0.1)
+min_genz = st.sidebar.number_input("Popolazione Gen Z Minima", 0, 30000, 0, 1000)
 
-def format_gen_z(val):
-    if val is None or pd.isna(val):
-        return "N/A"
-    return f"{val:,.0f} ab." if val > 100 else f"{val:.1f}%"
+filtered_df = df[(df["cpi_score"] >= min_cpi) & (df["population_gen_z"] >= min_genz)].sort_values(by="cpi_score", ascending=False).copy()
 
-# ---------------------------------------------------------
-# 1. EXECUTIVE KPI SUMMARY
-# ---------------------------------------------------------
-top_zone = df_filtered.iloc[0]
-avg_cpi = df["cpi_score"].mean()
+# --- KPI HEADER ---
+st.title("♻️ Copenhagen Re-Commerce Matrix")
+st.subheader("Executive Market Intelligence Dashboard")
 
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-with kpi1:
-    with st.container(border=True):
-        st.metric("Top Strategic Zone", top_zone["name"], f"CPI: {top_zone['cpi_score']:.1f}")
-with kpi2:
-    with st.container(border=True):
-        st.metric("Media CPI Area", f"{avg_cpi:.1f}", f"Δ Top: +{(top_zone['cpi_score'] - avg_cpi):.1f}")
-with kpi3:
-    with st.container(border=True):
-        gen_z_tot = df[col_gen_z].sum() if col_gen_z else 0
-        st.metric("Bacino Gen Z Totale", f"{gen_z_tot:,.0f}" if gen_z_tot > 0 else "N/A")
-with kpi4:
-    with st.container(border=True):
-        inc_avg = df[col_income].mean() if col_income else 0
-        st.metric("Reddito Medio Area", f"{inc_avg:,.0f} DKK" if inc_avg else "N/A")
+col1, col2, col3, col4 = st.columns(4)
+top_zone = filtered_df.iloc[0] if len(filtered_df) > 0 else None
 
-st.divider()
+col1.metric("Distretti Analizzati", f"{len(filtered_df)} / {len(df)}")
+col2.metric("Top Location CPI", top_zone["name"] if top_zone is not None else "N/A", f"CPI {top_zone['cpi_score']:.1f}" if top_zone is not None else None)
+col3.metric("Target Gen Z", f"{filtered_df['population_gen_z'].sum():,.0f}" if len(filtered_df) > 0 else 0)
+col4.metric("Media CPI", f"{filtered_df['cpi_score'].mean():.2f} / 10" if len(filtered_df) > 0 else "0.00")
+st.markdown("---")
 
-# ---------------------------------------------------------
-# 2. SPATIAL HEATMAP & LEADERBOARD
-# ---------------------------------------------------------
-col_map, col_rank = st.columns([3, 2])
+# --- CONTENUTO PRINCIPALE ---
+col_left, col_right = st.columns([3, 2])
 
-with col_map:
-    st.subheader("🗺️ Spatial Heatmap (CPI per Distretto)")
-    if geojson_data:
-        has_choropleth = hasattr(px, "choropleth_map")
-        map_kwargs = {
-            "data_frame": df_filtered,
-            "geojson": geojson_data,
-            "locations": "name",
-            "featureidkey": "properties.name",
-            "color": "cpi_score",
-            "color_continuous_scale": "Viridis",
-            "range_color": (df["cpi_score"].min(), df["cpi_score"].max()),
-            "zoom": 10.5,
-            "center": {"lat": 55.6761, "lon": 12.5683},
-            "opacity": 0.65,
-            "hover_name": "name",
-            "hover_data": {"cpi_score": ":.1f", col_supply_score: ":.1f", col_gap_score: ":.1f"},
-            "labels": {"cpi_score": "CPI Score"}
-        }
-        if has_choropleth:
-            map_kwargs["map_style"] = "carto-positron"
-            fig_map = px.choropleth_map(**map_kwargs)
-        else:
-            map_kwargs["mapbox_style"] = "carto-positron"
-            fig_map = px.choropleth_mapbox(**map_kwargs)
-        fig_map.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=420)
-        st.plotly_chart(fig_map, width="stretch")
-    else:
-        st.warning("GeoJSON non disponibile.")
+with col_left:
+    st.markdown("### 🗺️ Mappa Spaziale (Pydeck 3D)")
+    
+    if len(filtered_df) > 0:
+        # Dinamicità Mappa: Calcolo altezza esponenziale e colore sfumato
+        min_score = filtered_df["cpi_score"].min()
+        max_score = filtered_df["cpi_score"].max()
+        score_range = max_score - min_score if max_score != min_score else 1
 
-with col_rank:
-    st.subheader("🏆 Leaderboard Distrettuale")
-    rank_cols = ["rank", "name", "cpi_score", col_supply_score, col_gap_score]
-    st.dataframe(
-        df_filtered[rank_cols],
-        column_config={
-            "rank": st.column_config.NumberColumn("Rank", format="#%d"),
-            "name": "Distretto",
-            "cpi_score": st.column_config.NumberColumn("CPI", format="%.1f"),
-            col_supply_score: st.column_config.NumberColumn("Supply", format="%.1f"),
-            col_gap_score: st.column_config.NumberColumn("Market Gap", format="%.1f"),
-        },
-        hide_index=True,
-        width="stretch",
-        height=400
-    )
+        def get_color(cpi):
+            norm = (cpi - min_score) / score_range
+            # Sfuma dal Grigio Chiaro [200,200,200] al Verde Salvia [110, 142, 128]
+            r = int(200 - (200 - 110) * norm)
+            g = int(200 - (200 - 142) * norm)
+            b = int(200 - (200 - 128) * norm)
+            return [r, g, b, 230]
 
-st.divider()
+        filtered_df["color"] = filtered_df["cpi_score"].apply(get_color)
+        # Curva esponenziale per far saltare all'occhio i punteggi più alti
+        filtered_df["elevation"] = (filtered_df["cpi_score"] ** 3) * 3 
 
-# ---------------------------------------------------------
-# 3. NUOVO GRAFICO: QUADRANT MATRIX (Oceano Blu)
-# ---------------------------------------------------------
-st.subheader("🎯 Matrice di Opportunità: Supply vs Market Gap")
-st.caption("I distretti nel **quadrante in alto a destra** rappresentano le opportunita 'Oceano Blu' (alto volume tessile + scarso presidio della concorrenza).")
-
-avg_supply = df[col_supply_score].mean()
-avg_gap = df[col_gap_score].mean()
-
-fig_scatter = px.scatter(
-    df_filtered,
-    x=col_gap_score,
-    y=col_supply_score,
-    size=col_gen_z if col_gen_z else None,
-    color="cpi_score",
-    text="name",
-    color_continuous_scale="Viridis",
-    labels={
-        col_gap_score: "Opportunità di Mercato (Market Gap)",
-        col_supply_score: "Disponibilità Materia Prima (Supply)",
-        "cpi_score": "CPI Score"
-    },
-    size_max=35,
-    height=450
-)
-
-# Linee di quadrante per evidenziare le zone target
-fig_scatter.add_vline(x=avg_gap, line_dash="dash", line_color="gray", annotation_text="Media Gap")
-fig_scatter.add_hline(y=avg_supply, line_dash="dash", line_color="gray", annotation_text="Media Supply")
-fig_scatter.update_traces(textposition="top center")
-fig_scatter.update_layout(margin=dict(t=30, b=30, l=30, r=30))
-
-st.plotly_chart(fig_scatter, width="stretch")
-
-st.divider()
-
-# ---------------------------------------------------------
-# 4. BENCHMARK SIDE-BY-SIDE
-# ---------------------------------------------------------
-st.subheader("⚔️ Benchmark Distrettuale Side-by-Side")
-b_col1, b_col2 = st.columns(2)
-district_list = df["name"].tolist()
-
-with b_col1:
-    dist1_name = st.selectbox("Seleziona Distretto A:", district_list, index=0)
-with b_col2:
-    dist2_name = st.selectbox("Seleziona Distretto B:", district_list, index=min(1, len(district_list)-1))
-
-d1_data = df[df["name"] == dist1_name].iloc[0]
-d2_data = df[df["name"] == dist2_name].iloc[0]
-
-categories = ["Materia Prima Tessile", "Target Gen Z", "Opportunità di Mercato"]
-val1 = [float(d1_data[col_supply_score]), float(d1_data[col_demo_score]), float(d1_data[col_gap_score])]
-val2 = [float(d2_data[col_supply_score]), float(d2_data[col_demo_score]), float(d2_data[col_gap_score])]
-
-tab_bars, tab_radar = st.tabs(["📊 Confronto a Barre", "🕸️ Profilo Radar"])
-
-with tab_bars:
-    bench_df = pd.DataFrame({
-        "Indicatore": categories * 2,
-        "Punteggio (0-10)": val1 + val2,
-        "Distretto": [dist1_name] * 3 + [dist2_name] * 3
-    })
-    fig_grouped = px.bar(
-        bench_df,
-        x="Indicatore",
-        y="Punteggio (0-10)",
-        color="Distretto",
-        barmode="group",
-        text_auto=".1f",
-        color_discrete_sequence=["#1f77b4", "#ff7f0e"],
-        height=360
-    )
-    fig_grouped.update_layout(yaxis_range=[0, 10], margin=dict(t=20, b=20, l=20, r=20))
-    st.plotly_chart(fig_grouped, width="stretch")
-
-with tab_radar:
-    fig_radar = go.Figure()
-    fig_radar.add_trace(go.Scatterpolar(
-        r=val1 + [val1[0]],
-        theta=categories + [categories[0]],
-        fill='toself',
-        fillcolor='rgba(31, 119, 180, 0.2)',
-        name=dist1_name,
-        line=dict(color='#1f77b4', width=3)
-    ))
-    fig_radar.add_trace(go.Scatterpolar(
-        r=val2 + [val2[0]],
-        theta=categories + [categories[0]],
-        fill='toself',
-        fillcolor='rgba(255, 127, 14, 0.2)',
-        name=dist2_name,
-        line=dict(color='#ff7f0e', width=3)
-    ))
-    fig_radar.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 10])),
-        showlegend=True,
-        height=360,
-        margin=dict(t=20, b=20, l=40, r=40)
-    )
-    st.plotly_chart(fig_radar, width="stretch")
-
-# Differenziali
-st.markdown(f"#### 📊 Differenziale: **{dist1_name}** vs **{dist2_name}**")
-d_col1, d_col2, d_col3 = st.columns(3)
-cpi_diff = d1_data["cpi_score"] - d2_data["cpi_score"]
-d_col1.metric("Delta CPI Score", f"{d1_data['cpi_score']:.1f}", f"{cpi_diff:+.1f} vs {dist2_name}")
-
-if col_gen_z and col_gen_z in d1_data:
-    gz_diff = d1_data[col_gen_z] - d2_data[col_gen_z]
-    d_col2.metric("Delta Gen Z", format_gen_z(d1_data[col_gen_z]), f"{gz_diff:+,.0f} ab. vs {dist2_name}")
-
-if col_income and col_income in d1_data:
-    inc_diff = d1_data[col_income] - d2_data[col_income]
-    d_col3.metric("Delta Reddito Medio", f"{d1_data[col_income]:,.0f} DKK", f"{inc_diff:+,.0f} DKK vs {dist2_name}")
-
-# ---------------------------------------------------------
-# 5. ISPETTORE E DOWNLOAD REPORT
-# ---------------------------------------------------------
-st.divider()
-st.subheader("🔍 Ispettore Dettagliato & Export Report")
-
-insp_col, dl_col1, dl_col2 = st.columns([2, 1, 1])
-
-with insp_col:
-    selected_district = st.selectbox("Seleziona distretto per il Report PDF:", df["name"].tolist())
-    district_data = df[df["name"] == selected_district].iloc[0]
-
-with dl_col1:
-    st.write("")
-    st.write("")
-    csv_data = df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        label="📥 Scarica Matrice CSV",
-        data=csv_data,
-        file_name="copenhagen_recommerce_matrix.csv",
-        mime="text/csv",
-        width="stretch"
-    )
-
-with dl_col2:
-    st.write("")
-    st.write("")
-    pdf_filename = f"Executive_Report_{selected_district.replace(' ', '_')}.pdf"
-    generate_district_pdf(district_data.to_dict(), filename=pdf_filename)
-    if os.path.exists(pdf_filename):
-        with open(pdf_filename, "rb") as pdf_file:
-            pdf_bytes = pdf_file.read()
-        st.download_button(
-            label=f"📄 Scarica PDF ({selected_district})",
-            data=pdf_bytes,
-            file_name=pdf_filename,
-            mime="application/pdf",
-            width="stretch"
+        layer = pdk.Layer(
+            "ColumnLayer",
+            data=filtered_df,
+            get_position=["lon", "lat"],
+            get_elevation="elevation",
+            elevation_scale=1,
+            radius=400,
+            get_fill_color="color",
+            pickable=True,
+            auto_highlight=True,
         )
+        
+        view_state = pdk.ViewState(latitude=55.6761, longitude=12.5683, zoom=10.5, pitch=50, bearing=0)
+        
+        r = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            tooltip={"text": "{name}\nCPI: {cpi_score}\nGen Z: {population_gen_z}"}
+        )
+        st.pydeck_chart(r)
+
+with col_right:
+    st.markdown("### 🏆 Classifica CPI")
+    if len(filtered_df) > 0:
+        fig = px.bar(
+            filtered_df, x="cpi_score", y="name", orientation="h",
+            color="cpi_score", color_continuous_scale=["#EBF0ED", "#6E8E80"],
+            text_auto=".1f"
+        )
+        # theme="streamlit" risolve il problema dei colori del testo sovrascritti
+        fig.update_layout(
+            yaxis={"categoryorder": "total ascending"},
+            showlegend=False,
+            height=400,
+            margin=dict(l=0, r=0, t=10, b=10)
+        )
+        st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+
+# --- GENERATORE PDF ---
+st.markdown("---")
+st.markdown("### 📄 Generatore Report Executive PDF B2B")
+col_sel, col_btn = st.columns([3, 1])
+
+with col_sel:
+    selected_district = st.selectbox("Seleziona un distretto:", df["name"].tolist())
+
+with col_btn:
+    st.write(""); st.write("")
+    if st.button("📥 Genera PDF"):
+        zone_data = df[df["name"] == selected_district].iloc[0].to_dict()
+        filename = f"Executive_Report_{selected_district.replace(' ', '_')}.pdf"
+        generate_executive_pdf(zone_data, filename=filename)
+        with open(filename, "rb") as file:
+            st.download_button("⬇️ Scarica Ora", data=file, file_name=filename, mime="application/pdf")
