@@ -10,28 +10,12 @@ load_dotenv()
 
 API_URL = os.getenv("API_URL", "http://127.0.0.1:10000")
 
-# --- CONFIGURAZIONE PAGINA STREAMLIT (Tema Executive) ---
+# --- CONFIGURAZIONE PAGINA STREAMLIT ---
 st.set_page_config(
     page_title="Copenhagen Re-Commerce Matrix | B2B Dashboard",
     page_icon="♻️",
     layout="wide"
 )
-
-# --- STYLING & CSS PERSONALIZZATO ---
-st.markdown("""
-    <style>
-    .main {
-        background-color: #FAFAFA;
-    }
-    .metric-card {
-        background-color: #FFFFFF;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        border-left: 4px solid #6E8E80;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 # --- RECUPERO DATI DISTRETTI ---
 @st.cache_data(ttl=60)
@@ -82,22 +66,82 @@ df = df.sort_values(by="cpi_score", ascending=False).reset_index(drop=True)
 
 # --- HEADER PRINCIPALE ---
 st.title("♻️ Copenhagen Re-Commerce Matrix")
-st.markdown(f"**Dashboard Executive B2B** — Modello Selezionato: *{selected_label}*")
-st.markdown("---")
+st.caption(f"Dashboard Executive B2B — Modello Selezionato: {selected_label}")
+st.divider()
 
-# --- METRICHE HERO (Top 3 Indicatori) ---
+# --- METRICHE HERO ---
 top_zone = df.iloc[0]
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.markdown(f"""
-        <div class="metric-card">
-            <h4>🏆 Distretto Top (CPI)</h4>
-            <h2>{top_zone['name']}</h2>
-            <p style="color: #6E8E80; font-weight: bold;">Punteggio: {top_zone['cpi_score']:.2f} / 10</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.metric(
+        label="🏆 Distretto Top (CPI)",
+        value=top_zone["name"],
+        delta=f"{top_zone['cpi_score']:.2f} / 10 CPI"
+    )
 
 with col2:
-    st.markdown(f"""
-        <div class
+    st.metric(
+        label="👥 Target Gen Z Core",
+        value=f"{top_zone['population_gen_z']:,.0f}",
+        delta=f"Residenti a {top_zone['name']}"
+    )
+
+with col3:
+    st.metric(
+        label="💰 Reddito Medio Pro-Capite",
+        value=f"{top_zone['avg_income_dkk']:,.0f} DKK",
+        delta="Annuo"
+    )
+
+st.write("")
+
+# --- MAPPA 3D & TABELLA CLASSIFICA ---
+col_map, col_table = st.columns([1.3, 1])
+
+with col_map:
+    st.subheader("📍 Mappa 3D dei Distretti (CPI Dinamico)")
+    
+    layer = pdk.Layer(
+        "ColumnLayer",
+        data=df,
+        get_position=["lon", "lat"],
+        get_elevation="cpi_score * 12000",
+        elevation_scale=1,
+        radius=800,
+        get_fill_color="[110, 142, 128, 210]",
+        pickable=True,
+        auto_highlight=True,
+    )
+
+    view_state = pdk.ViewState(
+        latitude=55.6761,
+        longitude=12.5683,
+        zoom=11.3,
+        pitch=45,
+        bearing=0
+    )
+
+    r = pdk.Deck(
+        layers=[layer],
+        initial_view_state=view_state,
+        tooltip={"text": "Distretto: {name}\nCPI Score: {cpi_score}\nTarget Gen Z: {population_gen_z}"},
+        map_style="mapbox://styles/mapbox/light-v9"
+    )
+
+    st.pydeck_chart(r)
+
+with col_table:
+    st.subheader("📊 Classifica Distretti (CPI)")
+    st.markdown("Graduatoria aggiornata per il profilo di business selezionato.")
+    
+    display_df = df[["name", "cpi_score", "population_gen_z", "avg_income_dkk"]].copy()
+    display_df.columns = ["Distretto", "Indice CPI", "Gen Z Core", "Reddito (DKK)"]
+    display_df["Indice CPI"] = display_df["Indice CPI"].round(2)
+    display_df["Gen Z Core"] = display_df["Gen Z Core"].map("{:,.0f}".format)
+    display_df["Reddito (DKK)"] = display_df["Reddito (DKK)"].map("{:,.0f}".format)
+    
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+st.divider()
+st.caption("Copenhagen Re-Commerce Matrix B2B Platform — Streamlit Dashboard")
