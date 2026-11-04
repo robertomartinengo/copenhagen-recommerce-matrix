@@ -1,4 +1,5 @@
 import os
+from supabase import create_client, Client
 import re
 import asyncio
 import httpx
@@ -156,10 +157,14 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return WAITING_EMAIL
 
 
+# Inizializza Supabase direttamente nel bot
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+
 async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     email = update.message.text.strip()
     
-    # Validazione base dell'email
     if not re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
         await update.message.reply_text(
             "⚠️ Formato email non valido. Per favore inserisci un'email valida (es. *nome@azienda.com*):",
@@ -174,25 +179,25 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     b_type = context.user_data.get("b_type", "curated_vintage")
     full_name = context.user_data.get("full_name", "Utente B2B")
 
-    # 1. Invia il Lead a Supabase via FastAPI
-    lead_payload = {
-        "telegram_user_id": user.id,
-        "telegram_username": user.username,
-        "full_name": full_name,
-        "email": email,
-        "business_type": b_type,
-        "interested_district": district_name
-    }
+    # 1. Salvataggio DIRETTO su Supabase ( Tabella 'leads' )
+    if supabase:
+        try:
+            lead_data = {
+                "telegram_user_id": user.id,
+                "telegram_username": user.username,
+                "full_name": full_name,
+                "email": email,
+                "business_type": b_type,
+                "interested_district": district_name
+            }
+            res = supabase.table("leads").insert(lead_data).execute()
+            print(f"✅ [SUPABASE] Lead salvato con successo: {res}", flush=True)
+        except Exception as e:
+            print(f"❌ [SUPABASE ERR] Errore inserimento lead: {e}", flush=True)
+    else:
+        print("⚠️ [SUPABASE] Client Supabase non configurato nel bot!", flush=True)
 
-    try:
-        async with httpx.AsyncClient() as client:
-            print(f"📤 [LEAD] Invio lead a {API_URL}/leads con dati: {lead_payload}", flush=True)
-            res = await client.post(f"{API_URL}/leads", json=lead_payload, timeout=10.0)
-            print(f"📥 [LEAD] Risposta API: {res.status_code} - {res.text}", flush=True)
-    except Exception as e:
-        print(f"❌ [LEAD ERR] Impossibile salvare il lead su Supabase: {e}", flush=True)
-
-    # 2. Genera ed invia il PDF
+    # 2. Generazione ed invio del PDF
     await update.message.reply_text("✅ *Dati registrati con successo!* Generazione del Report PDF B2B in corso...", parse_mode="Markdown")
 
     try:
