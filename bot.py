@@ -111,13 +111,17 @@ async def handle_callback(update: Update, context) -> None:
             await query.message.reply_text(f"⚠️ Errore durante la generazione del PDF: {e}")
 
     elif query.data == "menu":
-        welcome_text = "♻️ *Copenhagen Re-Commerce Matrix Bot*\n\nSeleziona un'opzione dal menu principale:"
+        welcome_text = (
+            "♻️ *Copenhagen Re-Commerce Matrix Bot*\n\n"
+            "Ciao! Ti aiuto a trovare la **zona perfetta** a Copenhagen per aprire il tuo "
+            "negozio di moda usata, punto di raccolta o pop-up store.\n\n"
+            "Seleziona un'opzione qui sotto:"
+        )
         keyboard = [
             [InlineKeyboardButton("🎯 Qual è la Zona Top?", callback_data="top_zone")],
             [InlineKeyboardButton("📋 Lista Distretti Promettenti", callback_data="list_zones")]
         ]
         await query.edit_message_text(welcome_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-
 
 async def start_telegram_bot():
     try:
