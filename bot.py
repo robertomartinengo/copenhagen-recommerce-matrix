@@ -37,9 +37,11 @@ async def handle_callback(update: Update, context) -> None:
                 res = await client.get(f"{API_URL}/zones", timeout=10.0)
             
             if res.status_code == 200 and len(res.json()) > 0:
-                top = res.json()[0]
+                zones = res.json()
+                zones_sorted = sorted(zones, key=lambda x: float(x.get("cpi_score", 0)), reverse=True)
+                top = zones_sorted[0]
                 district_name = top["name"]
-                cpi = top["cpi_score"]
+                cpi = float(top["cpi_score"])
                 gen_z = top.get("population_gen_z", top.get("gen_z_percentage", 0))
                 gen_z_text = f"{gen_z:,.0f} residenti" if gen_z > 100 else f"{gen_z:.1f}%"
                 
@@ -65,11 +67,14 @@ async def handle_callback(update: Update, context) -> None:
                 res = await client.get(f"{API_URL}/zones", timeout=10.0)
 
             if res.status_code == 200:
-                zones = res.json()[:5]
+                zones = res.json()
+                zones_sorted = sorted(zones, key=lambda x: float(x.get("cpi_score", 0)), reverse=True)
+                zones = zones_sorted[:5]
                 msg = "📋 *Top 5 Distretti per Potenziale Re-Commerce (CPI):*\n\n"
                 keyboard = []
                 for idx, z in enumerate(zones, start=1):
-                    msg += f"*{idx}. {z['name']}* — CPI: `{z['cpi_score']:.1f}`\n"
+                    cpi_val = float(z.get('cpi_score', 0))
+                    msg += f"*{idx}. {z['name']}* — CPI: `{cpi_val:.1f}`\n"
                     keyboard.append([InlineKeyboardButton(f"📄 PDF {z['name']}", callback_data=f"pdf_{z['name']}")])
                 keyboard.append([InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")])
                 await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -132,3 +137,6 @@ async def start_telegram_bot():
         print("✅ [BOT] Bot Telegram avviato con successo e in ascolto 24/7!", flush=True)
     except Exception as e:
         print(f"❌ [BOT] Errore critico durante l'avvio del bot: {e}", flush=True)
+
+if __name__ == "__main__":
+    asyncio.run(start_telegram_bot())

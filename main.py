@@ -1,15 +1,27 @@
+import os
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
-import os
 from dotenv import load_dotenv
 
+# Importiamo la funzione di avvio del bot
+from bot import start_telegram_bot
+
 load_dotenv(override=True)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Avvia il bot Telegram in background all'avvio del server
+    asyncio.create_task(start_telegram_bot())
+    yield
 
 app = FastAPI(
     title="Copenhagen Re-Commerce Matrix API",
     description="API per il calcolo del potenziale di re-commerce nei distretti di Copenhagen.",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -36,13 +48,11 @@ def get_zones():
         if not supabase:
             raise Exception("Supabase client non inizializzato.")
         
-        # Corretto con il nome reale della tabella nel tuo database: copenhagen_zones
         response = supabase.table("copenhagen_zones").select("*").execute()
         if not response.data:
             raise Exception("Tabella vuota o dati non trovati.")
         return response.data
     except Exception as e:
-        # Fallback di sicurezza
         return [
             {
                 "name": "Nørrebro",
