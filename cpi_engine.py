@@ -1,6 +1,11 @@
 # cpi_engine.py
+from typing import Dict, TypedDict
 
-BUSINESS_PROFILES = {
+class BusinessProfile(TypedDict):
+    label: str
+    weights: Dict[str, float]
+
+BUSINESS_PROFILES: Dict[str, BusinessProfile] = {
     "vintage_premium": {
         "label": "Boutique / Lusso",
         "weights": {"waste": 0.2, "demo": 0.4, "gap": 0.4}

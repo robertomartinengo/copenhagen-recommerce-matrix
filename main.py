@@ -6,9 +6,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
 from dotenv import load_dotenv
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
-from cpi_engine import calculate_dynamic_cpi, BUSINESS_PROFILES
+from cpi_engine import calculate_dynamic_cpi
 from bot import start_telegram_bot
 
 load_dotenv(override=True)

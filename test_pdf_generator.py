@@ -1,5 +1,4 @@
 import os
-import pytest
 from pdf_generator import generate_executive_pdf
 
 def test_generate_executive_pdf_success(tmp_path):

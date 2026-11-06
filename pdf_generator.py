@@ -1,4 +1,3 @@
-import os
 from fpdf import FPDF
 from typing import Tuple
 from ai_reporter import generate_executive_narrative

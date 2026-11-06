@@ -8,6 +8,5 @@ pandas
 plotly
 python-dotenv
 supabase
-pytest
 google-genai
 st-theme

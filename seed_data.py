@@ -1,4 +1,3 @@
-import os
 from database import supabase
 from cpi_engine import compute_cpi
 
