@@ -1,0 +1,185 @@
+# REGOLE DI PROGETTO - copenhagen-recommerce-matrix
+
+Queste regole valgono per OGNI task. Se una regola entra in conflitto con una richiesta dell'utente, FERMATI e chiedi conferma. Non interpretare, non aggirare.
+
+## 0. Priorità (in ordine)
+
+1. Sicurezza dei segreti e dei dati personali.
+2. Budget zero: solo strumenti, librerie e servizi con tier gratuito.
+3. Onestà: nessun numero, risultato o funzionalità inventati.
+4. Correttezza e test verdi.
+5. Velocità.
+
+## 1. Lingua e stile
+
+- Parla con l'utente in ITALIANO.
+- Scrivi in INGLESE: codice, commenti, docstring, messaggi di commit, README, nomi di variabili.
+- `TODO.md` e `DECISIONS.md` restano in inglese.
+- Modifiche piccole e mirate. Un task = una modifica logica. Non rifattorizzare codice non richiesto.
+- Se manca un file, un dato o una decisione: fai UNA domanda precisa. Non inventare.
+
+## 2. Inizio di ogni task
+
+1. Leggi `TODO.md` e `DECISIONS.md`.
+2. Leggi SOLO i file necessari al task. Non leggere l'intera repo. Non aprire file grandi o inutili (PDF, geojson, lock file).
+3. Segui l'ordine di `TODO.md`: fase 1, poi 2, ecc. Non implementare funzioni di fasi successive se l'utente non lo chiede.
+4. Annuncia in 3-5 righe cosa farai e quali file toccherai, poi procedi.
+
+## 3. Ambiente Windows / PowerShell / venv (niente Docker)
+
+- La shell è PowerShell. NON usare `&&` (usa `;` oppure comandi separati).
+- Prima di OGNI comando Python, `pip`, `pytest`, `mypy`, `ruff`: attiva il venv nel terminale in uso.
+
+```powershell
+$env:PYTHONUTF8 = "1"
+.\venv\Scripts\activate
+python -c "import sys; print(sys.prefix)"
+```
+
+- L'ultimo comando deve stampare un percorso che contiene `venv`. Se non è così, FERMATI.
+- Se l'attivazione è bloccata dalla execution policy, NON cambiare la policy: usa `.\venv\Scripts\python.exe -m <modulo>` per ogni comando.
+- Mai `pip install` fuori dal venv. Ogni libreria nuova va aggiunta a `requirements.txt` (runtime) o `requirements-dev.txt` (test e qualità), con versione fissata, e deve essere gratuita.
+- Il Python locale è 3.13, ma la CI usa 3.11: scrivi codice compatibile con 3.11.
+- IGNORA e NON modificare `Dockerfile`, `docker-compose.yml`, `.devcontainer/`. Non usare Docker.
+- NON avviare MAI in primo piano `uvicorn`, `streamlit run`, `python bot.py` o l'API con il lifespan: bloccano il terminale. Testa l'API con `pytest` e `TestClient`.
+- NON avviare MAI il bot Telegram in locale con il token di produzione: due bot con lo stesso token si bloccano a vicenda (errore `Conflict`).
+
+## 4. Segreti (regole inviolabili)
+
+Il file `.env` contiene `API_URL`, `SUPABASE_URL`, `SUPABASE_KEY`, `TELEGRAM_BOT_TOKEN`, `RENDER_API_KEY`. Tutto ciò che leggi viene inviato al modello: un segreto letto è un segreto esposto.
+
+- NON leggere, aprire, stampare, copiare o citare `.env`. Vietati: `type .env`, `cat .env`, `Get-Content .env`, `Select-String` su `.env`, `@.env`.
+- Vietati comandi che stampano l'ambiente: `Get-ChildItem Env:`, `dir env:`, `$env:NOME` in `echo`/`Write-Host`, `set`, `printenv`.
+- Se un comando deve usare un segreto, deve essere un programma (Python con `python-dotenv`, o la CLI) che lo legge da solo. Il segreto non deve mai comparire nell'output, nei log, nei test, negli esempi o nei messaggi di commit.
+- Se vedi un segreto in un output: FERMATI, NON ripeterlo, dì all'utente quale segreto è stato esposto e che va ruotato.
+- Quando aggiungi una variabile d'ambiente, aggiorna `.env.example` con SOLO il nome e un valore segnaposto.
+- Mai nel codice: chiavi, token, URL con credenziali.
+- Mai interrogare la tabella `leads` per mostrare nomi o email. Usa solo conteggi (`count`).
+- Se `supabase init` crea cartelle locali, assicurati che `supabase/.temp/` sia nel `.gitignore`.
+
+## 5. Ciclo di lavoro e validazione (prima di chiedere approvazione)
+
+Per ogni modifica di codice esegui, in ordine:
+
+```powershell
+.\venv\Scripts\activate
+python -m pytest -q
+python -m ruff check .
+python -m mypy cpi_engine.py schemas.py --ignore-missing-imports
+```
+
+- Esegui `ruff` solo se è installato; altrimenti segnalalo e non installarlo senza dirlo.
+- Se un test fallisce: correggi il codice, non il test (a meno che il test sia sbagliato: spiega perché).
+- Massimo 3 tentativi per lo stesso errore. Al terzo FERMATI e riassumi: errore, ipotesi, cosa hai provato.
+- I test NON devono mai chiamare Supabase, Telegram, Render o Gemini reali. Usa `monkeypatch` e finti (fake) come in `test_main.py` e `test_ai_reporter.py`.
+- Se tocchi `cpi_engine.py` aggiorna o aggiungi test. I pesi si leggono da `BUSINESS_PROFILES`, non si deducono.
+- Per `dashboard.py`: verifica almeno `python -m py_compile dashboard.py` e chiedi all'utente di guardare la UI solo se hai cambiato l'aspetto.
+- Se ricevi un errore 429 o di quota dal modello, NON riprovare in ciclo: aspetta e dillo all'utente.
+- Cita nei report SOLO numeri misurati (copertura, test passati). Mai stime.
+
+## 6. Database: Supabase CLI
+
+Docker NON è disponibile, quindi `supabase start`, `db reset`, `db diff` e `db pull` NON funzionano (usano Docker). Non provarli.
+
+Comandi permessi:
+
+```powershell
+supabase --version
+supabase migration new <nome_snake_case>
+supabase migration list
+supabase db push --linked --dry-run
+supabase db push --linked
+```
+
+- Se un flag o un comando non esiste, leggi `supabase <comando> --help`. Non indovinare.
+- OGNI modifica allo schema è un file in `supabase/migrations/` creato con `supabase migration new`. Mai modificare lo schema dalla dashboard web. Mai rinominare o modificare migrazioni già applicate.
+- Scrivi SQL additivo e ripetibile (`if not exists`, `add column if not exists`).
+- Esiste un solo database (produzione) e non c'è un ambiente di test locale: ogni `db push` agisce sui dati veri.
+- Prima di `db push --linked`: mostra l'SQL all'utente, esegui `--dry-run`, poi chiedi approvazione esplicita.
+- Operazioni distruttive (`drop`, `truncate`, `delete` senza `where`, cambi di tipo, rimozione di colonne) richiedono una conferma scritta dell'utente nel messaggio. Un semplice click di approvazione non basta.
+- La RLS DEVE restare attiva su ogni tabella `public`. NON creare policy che diano accesso ad `anon`. NON dare privilegi ad `anon` o `authenticated`. Il backend usa la chiave secret lato server.
+- Se il progetto non è collegato (`supabase link` mai eseguito) o manca il login: FERMATI e chiedi all'utente. Non tentare di aggirarlo.
+- Dopo ogni migrazione aggiorna `supabase/schema.sql` (stato finale delle tabelle e policy) e `DECISIONS.md` se la scelta è architetturale.
+- Ogni modifica che tocca `leads` va controllata per il GDPR: minimizzazione dei dati, consenso, cancellazione. Segnalalo nel riepilogo.
+
+## 7. Git e GitHub
+
+- Lavora su `main` e fai push su `origin main`.
+- Prima di ogni commit: `git status` e `git diff --stat`.
+- Aggiungi i file con percorsi espliciti: `git add <file> <file>`. Mai `git add .` o `git add -A` senza aver letto `git status`.
+- Mai committare: `.env`, `venv/`, `__pycache__/`, `*.pdf` generati, file di Supabase locali.
+- Controllo segreti OBBLIGATORIO prima del commit (deve restituire `False`):
+
+```powershell
+git diff --cached --name-only
+git diff --cached | Select-String -Pattern "sb_secret_|sb_publishable_|rnd_|eyJ|\d{8,10}:[A-Za-z0-9_-]{35}" -Quiet
+```
+
+- Se restituisce `True` o se `.env` è nella lista: NON fare commit, fermati e avvisa l'utente.
+- Committa solo se i test passano. Un commit = una modifica logica (atomico).
+- Formato del messaggio, in inglese, Conventional Commits: `tipo(ambito): oggetto` (massimo 72 caratteri, modo imperativo, senza punto finale). Corpo opzionale per spiegare il perché.
+  - Tipi: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`, `perf`.
+  - Ambiti: `api`, `bot`, `dashboard`, `cpi`, `pdf`, `ai`, `db`, `ci`, `docs`, `deps`.
+  - Esempio: `fix(pdf): sanitize district name in the output filename`.
+- Poi: `git push origin main`.
+- Se il push è rifiutato: `git pull --rebase origin main`, riesegui i test, riprova. Mai forzare.
+- VIETATI senza richiesta esplicita dell'utente: `--force`, `--force-with-lease`, `--no-verify`, `git reset --hard`, `git clean -fd`, riscrittura della storia.
+- Un push su `main` fa partire la CI e (se attivo) il deploy: non fare push con test rossi.
+
+## 8. Deploy su Render
+
+- Preferisci il deploy automatico al push. Usa l'API di Render solo se serve un deploy manuale.
+- `RENDER_API_KEY` si usa SOLO da uno script (`scripts/render_deploy.py`, solo libreria standard Python) che legge la chiave dall'ambiente e stampa SOLO il codice di stato. Se lo script non esiste, crealo e mostralo all'utente prima di eseguirlo. Verifica l'endpoint nella documentazione ufficiale di Render, non andare a memoria.
+- Non deployare con test rossi o con modifiche non pushate.
+- NON modificare impostazioni o variabili d'ambiente del servizio Render tramite API.
+- Dopo il deploy: verifica che l'indirizzo letto da `API_URL` risponda con `"status":"online"`. Lo script Python legge `API_URL` dall'ambiente; non stamparlo se contiene credenziali. Il servizio gratuito può impiegare fino a circa un minuto a svegliarsi: attendi e riprova con pause, massimo 5 tentativi.
+
+## 9. Documentazione: TODO.md e DECISIONS.md
+
+Prima di chiudere OGNI task:
+
+`TODO.md`
+- Spunta `[x]` le voci completate e aggiungi la data e una riga sul risultato (cosa è stato fatto, come verificato).
+- Usa `[~]` per le voci a metà e scrivi cosa resta.
+- Aggiungi le attività nuove scoperte nella fase giusta, con il prossimo ID libero.
+- Non cancellare voci. Non cambiare gli ID.
+- Se un fatto è non verificato, scrivi `VERIFY`.
+
+`DECISIONS.md`
+- Aggiungi una voce SOLO per decisioni vere (scelta tra alternative, dipendenza, schema DB, architettura, pesi del CPI, fonti dati, sicurezza).
+- Formato: `## D-0XX Titolo` con `Status`, `Decision`, `Reason`, `Discarded`, `Consequences`. Numero = prossimo libero.
+- Non riscrivere le voci vecchie: se una scelta cambia, aggiungi una voce nuova e segna la vecchia `Superseded by D-0XX`.
+- Le motivazioni che l'utente non ha dichiarato vanno marcate `(inferred)`.
+- Nel `Narrative log` aggiungi una riga con un fatto VERIFICABILE per ogni risoluzione significativa (utile per personal statement e pitch). Niente numeri non misurati.
+
+Inoltre:
+- Se una funzione cambia, aggiorna `README.md` perché non prometta ciò che non esiste.
+- Fai il commit dei file `.md` insieme al codice oppure in un commit `docs:` separato.
+
+## 10. Regole di prodotto
+
+- Budget zero: se un task richiede un servizio o una libreria a pagamento, FERMATI e proponi l'alternativa gratuita.
+- Onestà: non scrivere nel codice, nei testi dell'app, nel README o nei PDF dati, fonti o risultati non verificati.
+- Fonte di verità del CPI: `calculate_dynamic_cpi` in `cpi_engine.py`. Se cambi i pesi: aggiorna i test e `DECISIONS.md`.
+- Design "Executive" per ogni modifica della UI: `border-radius: 16px` su card, mappa e tabella; verde salvia `#6E8E80`; la mappa segue il tema chiaro/scuro del browser (D-008).
+- Nei log e nei messaggi di errore non mettere dati personali. Non inviare dati personali a Gemini.
+- Non esporre eccezioni grezze agli utenti del bot o dell'API.
+
+## 11. Quando FERMARSI e chiedere
+
+- Comandi o operazioni distruttive o irreversibili.
+- Cambi di chiavi, autenticazione, permessi o RLS.
+- Registrazione a servizi esterni, dipendenze a pagamento.
+- Modifiche fuori dall'ambito del task.
+- Due errori consecutivi sulla stessa cosa, o qualunque dubbio su un segreto.
+
+## 12. Riepilogo a fine task (in italiano, breve)
+
+1. Cosa hai cambiato e perché.
+2. File toccati.
+3. Comandi eseguiti e risultato reale (test passati/falliti).
+4. Hash e messaggio del commit, esito del push.
+5. Voci aggiornate in `TODO.md` e `DECISIONS.md`.
+6. Cosa resta, e al massimo UNA domanda per l'utente.
+
+Non incollare mai segreti nel riepilogo.
