@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "saoudrizwan.claude-dev",
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "ms-python.black-formatter",
+        "mhutchie.git-graph",
+        "shd101yyy.markdown-preview-enhanced"
+    ]
+}
