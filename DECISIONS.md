@@ -95,3 +95,4 @@ Only verifiable facts. Add one line after each significant fix or trade-off.
 - 2026-11-05: the same zone data produces different rankings for four business models (proved by `test_business_type_changes_ranking`).
 - 2026-11-05: the PDF report keeps working when the AI service fails, thanks to a tested fallback.
 - 2026-11-05: a security review found the leads table readable and deletable with the public key; row-level security was enabled and the privileges revoked the same day.
+- 2026-11-07: CI pipeline configured with dedicated development dependencies (requirements-dev.txt) and strict linting/typing checks (ruff + mypy); 26 unit tests passing.

@@ -60,7 +60,7 @@ Legend: `[ ]` todo, `[~]` partly done, `[x]` done. **VERIFY** = I could not conf
 Done when: CI is green, the bot answers every button without freezing the API, nobody can write to the DB through an open endpoint, and the data model is honest.
 
 ### Correctness
-- [ ] **1.01 CI red.** `mypy` and `pytest-cov` are used by `.github/workflows/ci.yml` but missing from `requirements.txt`. Create `requirements-dev.txt` (pytest, pytest-cov, mypy, ruff), install it in CI, keep runtime requirements lean. Verify on the Actions tab.
+- [x] **1.01 CI red.** (2026-11-07) Created requirements-dev.txt with pinned dev dependencies (pytest, pytest-cov, mypy, ruff), removed dev dependencies from requirements.txt, added ruff linting step to CI, fixed type annotations in cpi_engine.py and unused imports. Verified locally with 26 passing tests and 0 static analysis errors.
 - [ ] **1.02 Demographics pillar is circular (CONFIRMED: the column does not exist).** Today the Demographics input is the stored `cpi_score`, an old overall CPI, and in the dashboard it is even the API's already-overwritten `curated_vintage` CPI. Steps:
   - [ ] a. Decide and write in `DECISIONS.md` how Demographics is derived from `population_gen_z` and `avg_income_dkk` (normalization, relative weight of the two, 0-10 output). Prefer the share of 18-35 residents over the absolute count (see 3.03). Rob confirms the formula.
   - [ ] b. Add the column (`demographics_score numeric`) with a migration committed in `supabase/schema.sql`, and fill it from the seed script, never by hand.
