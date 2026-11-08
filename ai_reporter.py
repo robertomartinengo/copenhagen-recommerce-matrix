@@ -4,7 +4,7 @@ from google import genai
 from google.genai import types
 
 # Modello configurabile da variabile d'ambiente (es. su Render) senza toccare il codice.
-DEFAULT_MODEL = "gemini-3.7-flash"
+DEFAULT_MODEL = "gemini-3.8-flash"
 
 _client = None
 

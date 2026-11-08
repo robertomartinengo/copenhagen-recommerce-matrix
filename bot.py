@@ -1,6 +1,6 @@
 import os
-from supabase import create_client, Client
 import re
+from supabase import create_client, Client
 import asyncio
 import httpx
 from dotenv import load_dotenv

@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 
 import main
 from main import app
-from cpi_engine import BUSINESS_PROFILES, calculate_cpi, calculate_dynamic_cpi
+from cpi_engine import BUSINESS_PROFILES, calculate_dynamic_cpi
 
 # Niente "with TestClient(app)": cosi' il lifespan (bot Telegram) non parte nei test.
 client = TestClient(app)
@@ -55,11 +55,6 @@ def test_demographics_falls_back_to_cpi_score():
     # 5*0.2 + 9*0.4 + 5*0.4 = 6.6
     assert result["cpi_score"] == pytest.approx(6.6, abs=0.01)
 
-
-def test_calculate_cpi_returns_float():
-    score = calculate_cpi(ZONE, "kilo_sale")
-    assert isinstance(score, float)
-    assert score == pytest.approx(6.6, abs=0.01)
 
 
 # ---------------------------------------------------------
@@ -135,51 +130,3 @@ def test_top_zone_empty_returns_empty_dict(monkeypatch):
     assert response.status_code == 200
     assert response.json() == {}
 
-
-# ---------------------------------------------------------
-# 3. API TESTS: /leads
-# ---------------------------------------------------------
-
-class FakeLeadsDB:
-    def __init__(self):
-        self.inserted = None
-
-    def table(self, _name):
-        return self
-
-    def insert(self, data):
-        self.inserted = data
-        return self
-
-    def execute(self):
-        return FakeResponse([self.inserted])
-
-
-LEAD = {
-    "telegram_user_id": 123456,
-    "full_name": "Mario Rossi",
-    "email": "mario@example.com",
-}
-
-
-def test_create_lead_success(monkeypatch):
-    db = FakeLeadsDB()
-    monkeypatch.setattr(main, "supabase", db)
-    response = client.post("/leads", json=LEAD)
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "success"
-    assert body["data"][0]["full_name"] == "Mario Rossi"
-    assert db.inserted["telegram_user_id"] == 123456
-
-
-def test_create_lead_missing_field_returns_422():
-    payload = {k: v for k, v in LEAD.items() if k != "email"}
-    response = client.post("/leads", json=payload)
-    assert response.status_code == 422
-
-
-def test_create_lead_without_database_returns_500(monkeypatch):
-    monkeypatch.setattr(main, "supabase", None)
-    response = client.post("/leads", json=LEAD)
-    assert response.status_code == 500

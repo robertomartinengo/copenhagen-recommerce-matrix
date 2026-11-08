@@ -1,5 +1,5 @@
 from database import supabase
-from cpi_engine import compute_cpi
+from cpi_engine import calculate_dynamic_cpi
 
 INITIAL_ZONES = [
     {
@@ -102,12 +102,7 @@ def run_seed():
     # 2. Inserimento e calcolo CPI baseline
     prepared_data = []
     for zone in INITIAL_ZONES:
-        score = compute_cpi(
-            zone["waste_supply_score"],
-            zone["population_gen_z"],
-            zone["avg_income_dkk"],
-            zone["market_gap_score"]
-        )
+        score = calculate_dynamic_cpi(zone, business_type="curated_vintage")["cpi_score"]
         zone["cpi_score"] = score
         prepared_data.append(zone)
 

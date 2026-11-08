@@ -8,7 +8,7 @@ load_dotenv(override=True)
 url: str = os.getenv("SUPABASE_URL", "").strip()
 key: str = os.getenv("SUPABASE_KEY", "").strip()
 
-print(f"--> [DEBUG] Connessione a Supabase URL: '{url}'")
+
 
 if not url or not key or "tuo-project-id" in url:
     raise ValueError("L'URL di Supabase nel file .env non è valido o contiene ancora il segnaposto!")

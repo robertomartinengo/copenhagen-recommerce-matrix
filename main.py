@@ -2,11 +2,10 @@ import os
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
 from dotenv import load_dotenv
-from pydantic import BaseModel
 
 from cpi_engine import calculate_dynamic_cpi
 from bot import start_telegram_bot
@@ -40,24 +39,6 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
-
-class LeadSchema(BaseModel):
-    telegram_user_id: int
-    telegram_username: str | None = None
-    full_name: str
-    email: str
-    business_type: str | None = None
-    interested_district: str | None = None
-
-
-@app.post("/leads")
-def create_lead(lead: LeadSchema):
-    try:
-        data = lead.model_dump()
-        response = supabase.table("leads").insert(data).execute()
-        return {"status": "success", "data": response.data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Errore salvataggio lead: {e}")
 
 @app.get("/")
 def read_root():

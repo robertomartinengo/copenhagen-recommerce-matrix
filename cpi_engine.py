@@ -41,6 +41,3 @@ def calculate_dynamic_cpi(zone_data: dict, business_type: str = "curated_vintage
         "business_profile_label": profile["label"]
     }
 
-def calculate_cpi(zone_data: dict, business_type: str = "curated_vintage") -> float:
-    """Funzione di supporto/compatibilità."""
-    return calculate_dynamic_cpi(zone_data, business_type)["cpi_score"]
