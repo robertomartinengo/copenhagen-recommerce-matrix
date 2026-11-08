@@ -27,7 +27,7 @@ BUSINESS_PROFILES: Dict[str, BusinessProfile] = {
 def calculate_dynamic_cpi(zone_data: dict, business_type: str = "curated_vintage") -> dict:
     """Calcola il punteggio CPI dinamico pesato in base al modello di business selezionato."""
     profile = BUSINESS_PROFILES.get(business_type, BUSINESS_PROFILES["curated_vintage"])
-    weights = profile["weights"]
+    weights: dict[str, float] = profile["weights"]  # type: ignore[assignment]
 
     waste = float(zone_data.get("waste_supply_score", 5.0))
     demo = float(zone_data.get("demographics_score", zone_data.get("cpi_score", 5.0)))
