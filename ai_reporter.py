@@ -1,29 +1,7 @@
-import os
-
-from google import genai
-from google.genai import types
+from autorouting import call_llm_with_fallback
 
 # Modello configurabile da variabile d'ambiente (es. su Render) senza toccare il codice.
 DEFAULT_MODEL = "gemini-3.8-flash"
-
-_client = None
-
-
-def _get_client():
-    """Crea il client Gemini al primo uso. Restituisce None se manca la chiave.
-
-    La chiave viene letta qui (e non all'import) cosi' funziona anche se
-    load_dotenv() viene eseguito dopo l'import di questo modulo.
-    """
-    global _client
-    if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if api_key:
-            _client = genai.Client(
-                api_key=api_key,
-                http_options=types.HttpOptions(timeout=20000),  # millisecondi
-            )
-    return _client
 
 
 def generate_executive_narrative(zone_data: dict, business_type: str = "curated_vintage") -> str:
@@ -36,10 +14,6 @@ def generate_executive_narrative(zone_data: dict, business_type: str = "curated_
     gen_z = zone_data.get("population_gen_z", 0)
     avg_income = zone_data.get("avg_income_dkk", 0)
     business_label = zone_data.get("business_profile_label", business_type)
-
-    client = _get_client()
-    if client is None:
-        return _fallback_narrative(name, cpi, gen_z, avg_income, business_label)
 
     prompt = f"""
 Sei un Senior Real Estate & Retail Analyst specializzato in Re-Commerce e moda circolare a Copenhagen.
@@ -59,23 +33,11 @@ Requisiti del testo:
 """
 
     try:
-        response = client.models.generate_content(
-            model=os.getenv("GEMINI_MODEL", DEFAULT_MODEL),
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                # Margine ampio: nei modelli recenti anche il "ragionamento" interno
-                # consuma token e un limite troppo basso puo' dare risposte vuote.
-                # La lunghezza del testo e' controllata dal prompt (max 70 parole).
-                max_output_tokens=1024,
-                temperature=0.4,
-            ),
-        )
-        text = getattr(response, "text", None)
-        if text and text.strip():
-            return text.strip()
-        print("⚠️ [AI REPORTER] Risposta vuota dal modello, uso il fallback.")
-    except Exception as e:
-        print(f"⚠️ [AI REPORTER] Fallback attivato a causa di: {e}")
+        text = call_llm_with_fallback(prompt)
+    except Exception:
+        text = None
+    if text and text.strip():
+        return text.strip()
 
     return _fallback_narrative(name, cpi, gen_z, avg_income, business_label)
 

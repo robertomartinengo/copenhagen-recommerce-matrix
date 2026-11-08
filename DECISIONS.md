@@ -106,6 +106,22 @@ if a decision changes, add a new entry and mark the old one "Superseded by D-0XX
 - Discarded: keeping public README setup sections, .env.example with variable names,
   Dockerfile, and docker-compose.yml for one-click container deployment.
 
+## D-015 LLM autorouting with free-tier fallback chain
+- Status: Accepted.
+- Decision: `ai_reporter.py` no longer calls Gemini directly. It uses `autorouting.py`,
+  which tries providers in order: Google Gemini (google-genai SDK), Groq (HTTP API),
+  OpenRouter (HTTP API, free models only). If all fail, a deterministic template
+  fallback is used (existing `_fallback_narrative`). API keys are read from
+  environment variables (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`)
+  and never committed.
+- Reason: Nemotron (Cline Free) is only for the user inside the IDE, not for the
+  project code. Cloud free tiers have quotas; an automatic fallback chain prevents
+  the report generation from stopping when one provider hits its limit.
+- Discarded: Ollama local on CPU (too slow on this hardware, see hardware review);
+  direct single-provider dependency (single point of failure).
+- Consequence: `google-genai` remains a dependency; `httpx` (already present) is
+  used for Groq and OpenRouter HTTP calls.
+
 ## Narrative log (facts usable for pitch and personal statement)
 Only verifiable facts. Add one line after each significant fix or trade-off.
 
@@ -113,4 +129,5 @@ Only verifiable facts. Add one line after each significant fix or trade-off.
 - 2026-11-05: the PDF report keeps working when the AI service fails, thanks to a tested fallback.
 - 2026-11-05: a security review found the leads table readable and deletable with the public key; row-level security was enabled and the privileges revoked the same day.
 - 2026-11-07: CI pipeline configured with dedicated development dependencies (requirements-dev.txt) and strict linting/typing checks (ruff + mypy); 26 unit tests passing.
+- 2026-11-08: LLM autorouting implemented (Gemini → Groq → OpenRouter → deterministic fallback) via `autorouting.py`; `ai_reporter.py` updated accordingly.
 

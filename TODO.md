@@ -125,6 +125,7 @@ Done when: README, docs and the Project instructions match the code, and the `le
 - [ ] **2.15 Tests:** mock Gemini in `test_pdf_generator.py`; add tests for the bot handlers (callbacks, email validation, filename safety); measure real coverage and publish only that number.
 - [ ] **2.16 Static checks:** add `ruff` to CI; extend `mypy` beyond `cpi_engine.py` and `schemas.py`.
 - [~] **2.17 LiteLLM setup for Cline:** Rimosso il 2026-11-08. Il setup multi-provider è stato abbandonato a causa di blocchi ricorrenti e limiti di quota. Verrà rivalutato con un nuovo sistema di autorouting gratuito e funzionante.
+- [x] **2.18 LLM autorouting for project code:** (2026-11-08) Created `autorouting.py` with fallback chain Gemini → Groq → OpenRouter → deterministic template. Updated `ai_reporter.py` to use it. Added placeholder docs to `.env.example`. Documented as D-015 in `DECISIONS.md`.
 
 ---
 
