@@ -89,12 +89,6 @@ if a decision changes, add a new entry and mark the old one "Superseded by D-0XX
 - Discarded: policies that let `anon` insert leads directly (they would allow public writes and spam).
 - Consequence: if a browser client ever talks to Supabase (e.g. user login, TODO 4.10), policies per user must be designed first.
 
-## D-013 LiteLLM proxy configuration with multi-provider fallbacks for Cline integration
-- Status: Accepted.
-- Decision: `litellm_config.yaml` is configured with a primary target group (`gemini-flash` pointing to `gemini/gemini-2.0-flash`), model aliases for OpenAI/Cline clients (`cline-model`, `gpt-4o`, `claude-3-5-sonnet`), and explicit sequential fallback targets (`gemini-flash-secondary`, `groq-llama`, `openrouter-llama`, `sambanova-llama`, `nvidia-llama`, `cohere-command`, `cloudflare-llama`). `drop_params: true` is enabled in `litellm_settings` to automatically sanitize vendor-specific parameters.
-- Reason: allows Cline to execute seamless background LLM queries across 8 free LLM provider backends without failing on quota limits or unsupported parameter payload schemas.
-- Discarded: single `model_name` reuse across distinct providers (which caused invalid round-robin routing and broken fallback lookups).
-
 ## Narrative log (facts usable for pitch and personal statement)
 Only verifiable facts. Add one line after each significant fix or trade-off.
 
@@ -102,4 +96,4 @@ Only verifiable facts. Add one line after each significant fix or trade-off.
 - 2026-11-05: the PDF report keeps working when the AI service fails, thanks to a tested fallback.
 - 2026-11-05: a security review found the leads table readable and deletable with the public key; row-level security was enabled and the privileges revoked the same day.
 - 2026-11-07: CI pipeline configured with dedicated development dependencies (requirements-dev.txt) and strict linting/typing checks (ruff + mypy); 26 unit tests passing.
-- 2026-11-08: LiteLLM multi-provider proxy configured with 8 free models, automatic fallback routing, parameter sanitization, and local gitignore secret protection.
+

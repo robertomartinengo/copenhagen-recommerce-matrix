@@ -124,7 +124,7 @@ Done when: README, docs and the Project instructions match the code, and the `le
 ### Quality
 - [ ] **2.15 Tests:** mock Gemini in `test_pdf_generator.py`; add tests for the bot handlers (callbacks, email validation, filename safety); measure real coverage and publish only that number.
 - [ ] **2.16 Static checks:** add `ruff` to CI; extend `mypy` beyond `cpi_engine.py` and `schemas.py`.
-- [x] **2.17 LiteLLM setup for Cline:** (2026-11-08) Configured `litellm_config.yaml` with 8 free LLM providers, model aliases, parameter sanitization (`drop_params: true`), and verified fallback chain. Added `litellm_config.yaml` to `.gitignore`.
+- [~] **2.17 LiteLLM setup for Cline:** Rimosso il 2026-11-08. Il setup multi-provider è stato abbandonato a causa di blocchi ricorrenti e limiti di quota. Verrà rivalutato con un nuovo sistema di autorouting gratuito e funzionante.
 
 ---
 
