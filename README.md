@@ -6,7 +6,7 @@
 ![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)
 ![Code Style](https://img.shields.io/badge/type--check-mypy%20100%25-blue)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 
 ---
 
@@ -32,18 +32,7 @@ $$\text{CPI} = (w_1 \cdot \text{Supply Score}) + (w_2 \cdot \text{Demographics S
 
 ## 🏛️ System Architecture
 
-*The system is built on a modern, modular three-tier architecture:*
-
-```text
-[ Supabase PostgreSQL ]
-         │
-         ▼
-[ FastAPI Backend Engine ] ──(REST API)──► [ Pytest & Mypy CI/CD Pipeline ]
-         │
-         ├──► [ Streamlit Technical Control Room ] (Spatial GeoJSON Heatmap & B2B Radar)
-         ├──► [ Executive PDF Engine ] (FPDF2 Automated Report Generation)
-         └──► [ Freemium Telegram Bot ] (Interactive Retail Decision Assistant)
-```
+The platform is built on a proprietary three-tier architecture consisting of a backend API, a control room dashboard, and a Telegram bot interface. Internal service boundaries, data flows, and infrastructure details are confidential and not disclosed in this document.
 
 ---
 
@@ -82,59 +71,12 @@ Direct conversational interface designed for the end-user/retailer:
 
 ---
 
-## 🚀 Getting Started
 
-### 📋 Prerequisites
 
-* Python `3.11+`
-* Docker & Docker Compose *(optional for containerization)*
 
-### ⚙️ Local Setup
 
-1. **Clone the repository and set up the virtual environment:**
 
-   ```bash
-   git clone https://github.com/robertomartinengo/copenhagen-recommerce-matrix.git
-   cd copenhagen-recommerce-matrix
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
 
-2. **Install dependencies:**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure environment variables:**
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   *Insert your real parameters in* `.env` *(*`SUPABASE_URL`*,* `SUPABASE_KEY`*,* `TELEGRAM_BOT_TOKEN`*).*
-
-4. **Run the Control Room and API:**
-
-   ```bash
-   # Terminal 1 (Backend API)
-   uvicorn main:app --reload --port 8000
-
-   # Terminal 2 (Dashboard Streamlit)
-   streamlit run dashboard.py
-   ```
-
----
-
-## 🐳 Docker Deployment
-
-*Run the entire isolated stack (Backend + Dashboard + Telegram Bot) with a single command:*
-
-```bash
-docker-compose up --build
-```
-
----
 
 ## 🧪 Testing & Quality Assurance
 
@@ -152,4 +94,6 @@ mypy cpi_engine.py schemas.py --ignore-missing-imports
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+This software is proprietary and confidential. All rights reserved.
+See `LICENSE` for full terms. No part of this software may be copied,
+modified, or distributed without written permission from the copyright holder.

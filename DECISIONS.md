@@ -74,10 +74,17 @@ if a decision changes, add a new entry and mark the old one "Superseded by D-0XX
 - Rule: do not cite Open Data DK, Statistikbank or OpenStreetMap as data sources until a pipeline
   that really uses them exists (TODO Phase 3).
 
-## D-011 Repository licence is MIT
+## D-011 Repository licence changed from MIT to Proprietary (All Rights Reserved)
 - Status: Accepted.
-- Consequence: the CPI formula is public. "Proprietary formula" wording in `docs/core_strategy.md` must go
-  (or the licence must be changed on purpose).
+- Decision: the repository is no longer open source. The `LICENSE` file now grants
+  no rights to use, copy, modify, merge, publish, distribute, sublicense, or sell
+  the software without prior written permission from the copyright holder.
+- Reason: protect the startup's intellectual property and prevent unauthorized
+  replication of the Copenhagen Re-Commerce Matrix platform.
+- Discarded: MIT License (permissive, allows free reuse and commercial exploitation).
+- Consequence: "Proprietary formula" wording in `docs/core_strategy.md` is now
+  consistent with the licence. The CPI formula remains public in code but the
+  software itself is closed source.
 
 ## D-012 Supabase access model: RLS on, no public policies, server-side key only
 - Status: Accepted 2026-11-05; the lead insert from the bot still has to be tested (TODO 1.16).
@@ -88,6 +95,16 @@ if a decision changes, add a new entry and mark the old one "Superseded by D-0XX
   secret key stored in Render and in the local `.env`, never in the repo, chat or screenshots.
 - Discarded: policies that let `anon` insert leads directly (they would allow public writes and spam).
 - Consequence: if a browser client ever talks to Supabase (e.g. user login, TODO 4.10), policies per user must be designed first.
+
+## D-014 Removal of public setup and deployment instructions
+- Status: Accepted.
+- Decision: all getting-started documentation, local setup commands, Dockerfile,
+  docker-compose.yml, and .env.example values have been removed or emptied from
+  the repository. The README no longer contains clone, install, or run instructions.
+- Reason: prevent third parties from replicating or running a copy of the platform
+  without authorization. Deployment and onboarding are handled privately.
+- Discarded: keeping public README setup sections, .env.example with variable names,
+  Dockerfile, and docker-compose.yml for one-click container deployment.
 
 ## Narrative log (facts usable for pitch and personal statement)
 Only verifiable facts. Add one line after each significant fix or trade-off.
