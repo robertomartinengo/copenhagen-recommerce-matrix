@@ -140,6 +140,19 @@ if a decision changes, add a new entry and mark the old one "Superseded by D-0XX
   `calculate_dynamic_cpi` raises `ValueError` if `demographics_score` is missing
   instead of silently falling back to `cpi_score`.
 
+## D-017 CPI computed only in the API, not in the dashboard
+- Status: Accepted.
+- Decision: `calculate_dynamic_cpi` is called exclusively in `main.py` (endpoint
+  `/zones`). `dashboard.py` no longer imports or calls it; it reads the already
+  computed `cpi_score` from the API response and only adds dashboard-specific
+  fields (coordinates, elevation, fill color, labels).
+- Reason: eliminates double computation. The API is the single source of truth
+  for the CPI value per business profile; the dashboard is a pure consumer.
+- Discarded: keeping local recalculation in `dashboard.py` (redundant, wastes
+  compute, creates risk of divergence between API and dashboard values).
+- Consequence: the dashboard depends on the API returning `cpi_score`; if the
+  API is unreachable, the dashboard shows an error instead of computing locally.
+
 ## Narrative log (facts usable for pitch and personal statement)
 Only verifiable facts. Add one line after each significant fix or trade-off.
 

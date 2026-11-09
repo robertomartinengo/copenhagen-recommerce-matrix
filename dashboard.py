@@ -8,8 +8,6 @@ import streamlit as st
 from dotenv import load_dotenv
 from streamlit_theme import st_theme
 
-from cpi_engine import calculate_dynamic_cpi
-
 load_dotenv()
 
 API_URL = os.getenv("API_URL", "https://copenhagen-recommerce-matrix.onrender.com")
@@ -182,12 +180,12 @@ except Exception as e:
     api_error = str(e)
 
 # --- ELABORAZIONE DATI ---
+# Il CPI è già stato calcolato dall'API (endpoint /zones). Il dashboard non lo
+# ricalcola: usa direttamente il valore restituito, evitando il doppio calcolo.
 processed_zones = []
 for zone in raw_zones:
-    cpi_res = calculate_dynamic_cpi(zone, business_type=active_profile_key)
     z_data = zone.copy()
-    score = cpi_res["cpi_score"]
-    z_data["cpi_score"] = score
+    score = float(z_data.get("cpi_score", 0))
 
     name_lower = z_data["name"].lower().strip()
     if name_lower in COPENHAGEN_COORDS:
