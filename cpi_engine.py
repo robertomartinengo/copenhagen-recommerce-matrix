@@ -30,7 +30,14 @@ def calculate_dynamic_cpi(zone_data: dict, business_type: str = "curated_vintage
     weights: dict[str, float] = profile["weights"]  # type: ignore[assignment]
 
     waste = float(zone_data.get("waste_supply_score", 5.0))
-    demo = float(zone_data.get("demographics_score", zone_data.get("cpi_score", 5.0)))
+    demo_raw = zone_data.get("demographics_score")
+    if demo_raw is None:
+        raise ValueError(
+            "demographics_score is missing from zone_data. "
+            "The Demographics pillar can no longer fall back to cpi_score (see D-016). "
+            "Provide demographics_score in the zone data or run seed_data.py first."
+        )
+    demo = float(demo_raw)
     gap = float(zone_data.get("market_gap_score", 5.0))
 
     cpi = (waste * weights["waste"]) + (demo * weights["demo"]) + (gap * weights["gap"])

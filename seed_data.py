@@ -92,6 +92,30 @@ INITIAL_ZONES = [
     }
 ]
 
+POPULATION_MIN: int = min(int(z["population_gen_z"]) for z in INITIAL_ZONES)  # type: ignore
+POPULATION_MAX: int = max(int(z["population_gen_z"]) for z in INITIAL_ZONES)  # type: ignore
+INCOME_MIN: float = min(float(z["avg_income_dkk"]) for z in INITIAL_ZONES)  # type: ignore
+INCOME_MAX: float = max(float(z["avg_income_dkk"]) for z in INITIAL_ZONES)  # type: ignore
+
+
+def _normalise_0_10(value: float, vmin: float, vmax: float) -> float:
+    """Normalizza un valore su scala 0-10 usando min-max. Se vmin==vmax restituisce 5.0."""
+    if vmax == vmin:
+        return 5.0
+    return round((value - vmin) / (vmax - vmin) * 10.0, 2)
+
+
+def compute_demographics_score(zone: dict) -> float:
+    """Calcola il punteggio Demographics (0-10) da population_gen_z e avg_income_dkk.
+
+    Formula (vedi D-016): 0.6 * gen_z_normalised + 0.4 * income_normalised.
+    La normalizzazione è min-max sui valori osservati nelle 11 zone di Copenhagen.
+    """
+    gen_z_norm = _normalise_0_10(zone["population_gen_z"], POPULATION_MIN, POPULATION_MAX)
+    income_norm = _normalise_0_10(zone["avg_income_dkk"], INCOME_MIN, INCOME_MAX)
+    return round(0.6 * gen_z_norm + 0.4 * income_norm, 2)
+
+
 def run_seed():
     print("--> Avvio reset e seeding della tabella copenhagen_zones...")
     
@@ -99,7 +123,11 @@ def run_seed():
     supabase.table("copenhagen_zones").delete().neq("id", 0).execute()
     print("--> Tabella svuotata.")
 
-    # 2. Inserimento e calcolo CPI baseline
+    # 2. Calcolo Demographics score per ogni zona (D-016)
+    for zone in INITIAL_ZONES:
+        zone["demographics_score"] = compute_demographics_score(zone)
+
+    # 3. Inserimento e calcolo CPI baseline
     prepared_data = []
     for zone in INITIAL_ZONES:
         score = calculate_dynamic_cpi(zone, business_type="curated_vintage")["cpi_score"]

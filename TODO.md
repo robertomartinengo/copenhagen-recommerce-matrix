@@ -61,12 +61,12 @@ Done when: CI is green, the bot answers every button without freezing the API, n
 
 ### Correctness
 - [x] **1.01 CI red.** (2026-11-07) Created requirements-dev.txt with pinned dev dependencies (pytest, pytest-cov, mypy, ruff), removed dev dependencies from requirements.txt, added ruff linting step to CI, fixed type annotations in cpi_engine.py and unused imports. Verified locally with 26 passing tests and 0 static analysis errors.
-- [ ] **1.02 Demographics pillar is circular (CONFIRMED: the column does not exist).** Today the Demographics input is the stored `cpi_score`, an old overall CPI, and in the dashboard it is even the API's already-overwritten `curated_vintage` CPI. Steps:
-  - [ ] a. Decide and write in `DECISIONS.md` how Demographics is derived from `population_gen_z` and `avg_income_dkk` (normalization, relative weight of the two, 0-10 output). Prefer the share of 18-35 residents over the absolute count (see 3.03). Rob confirms the formula.
-  - [ ] b. Add the column (`demographics_score numeric`) with a migration committed in `supabase/schema.sql`, and fill it from the seed script, never by hand.
-  - [ ] c. Remove the `cpi_score` fallback in `calculate_dynamic_cpi`: a missing pillar must raise or log an error, not silently use another number.
-  - [ ] d. Decide the fate of the stored `cpi_score` column (legacy baseline: rename or drop). The API field `cpi_score` is always the computed one.
-  - [ ] e. Update `test_main.py` for the new behaviour (the test `test_demographics_falls_back_to_cpi_score` must change).
+- [x] **1.02 Demographics pillar is circular (CONFIRMED: the column does not exist).** Today the Demographics input is the stored `cpi_score`, an old overall CPI, and in the dashboard it is even the API's already-overwritten `curated_vintage` CPI. Steps:
+  - [x] a. Decide and write in `DECISIONS.md` how Demographics is derived from `population_gen_z` and `avg_income_dkk` (normalization, relative weight of the two, 0-10 output). Prefer the share of 18-35 residents over the absolute count (see 3.03). Rob confirms the formula. → D-016: min-max normalisation, 0.6/0.4 weights.
+  - [x] b. Add the column (`demographics_score numeric`) with a migration committed in `supabase/schema.sql`, and fill it from the seed script, never by hand.
+  - [x] c. Remove the `cpi_score` fallback in `calculate_dynamic_cpi`: a missing pillar must raise or log an error, not silently use another number.
+  - [x] d. Decide the fate of the stored `cpi_score` column (legacy baseline: rename or drop). The API field `cpi_score` is always the computed one. → Documented as legacy in D-016; not dropped (destructive change requires explicit user confirmation).
+  - [x] e. Update `test_main.py` for the new behaviour (the test `test_demographics_falls_back_to_cpi_score` must change).
 - [ ] **1.03 Dashboard double-computes the CPI.** Call `/zones?business_type=...` and remove the local `calculate_dynamic_cpi` pass in `dashboard.py` (or stop the API from overwriting `cpi_score`). One place computes the CPI.
 - [ ] **1.04 `seed_data.py` is broken** (imports non-existent `compute_cpi`) and wipes the whole table with `delete()`. Rewrite it to upsert on `district_code` (the UNIQUE column), use `calculate_dynamic_cpi`, include `demographics_score`, and require an explicit `--reset` flag to delete. The `district_code` values look like postal codes plus invented suffixes (e.g. `DK-2300-E`): document what they mean.
 - [ ] **1.05 PDF crash for "Vesterbro / Kongens Enghave".** The `/` ends up in the filename. Generate the PDF in memory (`BytesIO`/`output()` bytes) or in `tempfile`, never from user/DB text; also fixes concurrent users overwriting each other.

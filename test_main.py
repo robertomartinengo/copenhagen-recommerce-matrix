@@ -44,16 +44,16 @@ def test_unknown_profile_falls_back_to_curated_vintage():
     assert unknown["cpi_score"] == curated["cpi_score"]
 
 
-def test_missing_scores_default_to_five():
-    result = calculate_dynamic_cpi({}, business_type="kilo_sale")
-    assert result["cpi_score"] == pytest.approx(5.0)
+def test_missing_demographics_score_raises_value_error():
+    zone = {"waste_supply_score": 5.0, "market_gap_score": 5.0}
+    with pytest.raises(ValueError, match="demographics_score is missing"):
+        calculate_dynamic_cpi(zone, business_type="kilo_sale")
 
 
-def test_demographics_falls_back_to_cpi_score():
+def test_demographics_score_is_required():
     zone = {"waste_supply_score": 5.0, "market_gap_score": 5.0, "cpi_score": 9.0}
-    result = calculate_dynamic_cpi(zone, business_type="vintage_premium")
-    # 5*0.2 + 9*0.4 + 5*0.4 = 6.6
-    assert result["cpi_score"] == pytest.approx(6.6, abs=0.01)
+    with pytest.raises(ValueError, match="demographics_score is missing"):
+        calculate_dynamic_cpi(zone, business_type="vintage_premium")
 
 
 

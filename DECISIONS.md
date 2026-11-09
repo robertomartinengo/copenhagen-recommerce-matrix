@@ -122,6 +122,24 @@ if a decision changes, add a new entry and mark the old one "Superseded by D-0XX
 - Consequence: `google-genai` remains a dependency; `httpx` (already present) is
   used for Groq and OpenRouter HTTP calls.
 
+## D-016 Demographics score derivation for CPI pillar
+- Status: Accepted.
+- Decision: the Demographics pillar of the CPI is derived from `population_gen_z`
+  and `avg_income_dkk` using min-max normalisation on [0, 10] over the observed
+  values of the 11 Copenhagen zones, then combined as
+  `demographics_score = 0.6 * gen_z_normalised + 0.4 * income_normalised`.
+- Reason: population share is the primary demographic driver for second-hand retail;
+  income is a corrective factor. Weights 60/40 reflect that. Min-max normalisation
+  avoids the bug where absolute `population_gen_z` automatically favoured populous
+  districts.
+- Discarded: using raw `population_gen_z` (favours populous districts by construction,
+  see TODO 1.02); using only income (ignores population density); using only
+  population (ignores purchasing power).
+- Consequence: `cpi_score` column in `copenhagen_zones` becomes a legacy baseline
+  only. It is not dropped (destructive change requires explicit user confirmation).
+  `calculate_dynamic_cpi` raises `ValueError` if `demographics_score` is missing
+  instead of silently falling back to `cpi_score`.
+
 ## Narrative log (facts usable for pitch and personal statement)
 Only verifiable facts. Add one line after each significant fix or trade-off.
 
