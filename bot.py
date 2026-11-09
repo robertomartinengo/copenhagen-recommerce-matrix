@@ -1,5 +1,6 @@
 import os
 import re
+import tempfile
 from supabase import create_client, Client
 import asyncio
 import httpx
@@ -14,7 +15,7 @@ from telegram.ext import (
     filters,
     ContextTypes
 )
-from pdf_generator import generate_executive_pdf
+from pdf_generator import generate_executive_pdf, _sanitize_filename
 
 load_dotenv(override=True)
 
@@ -203,20 +204,27 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     try:
         async with httpx.AsyncClient() as client:
             res = await client.get(f"{API_URL}/zones?business_type={b_type}", timeout=10.0)
-        
+
         if res.status_code == 200:
             zones = res.json()
             zone_data = next((z for z in zones if z["name"].lower() == district_name.lower()), None)
             if not zone_data:
                 zone_data = zones[0]
 
-            pdf_filename = f"Executive_Report_{district_name.replace(' ', '_')}.pdf"
-            generate_executive_pdf(zone_data, filename=pdf_filename)
+            # Nome sicuro per il file mostrato all'utente (niente slash, spazi, ecc.)
+            safe_district = _sanitize_filename(district_name)
+            display_filename = f"Executive_Report_{safe_district}.pdf"
 
-            with open(pdf_filename, "rb") as doc:
+            # File temporaneo unico per evitare sovrascritture tra utenti concorrenti
+            with tempfile.NamedTemporaryFile(suffix=".pdf", prefix="exec_report_", delete=False) as tmp:
+                pdf_path = tmp.name
+
+            generate_executive_pdf(zone_data, filename=pdf_path)
+
+            with open(pdf_path, "rb") as doc:
                 await update.message.reply_document(
                     document=doc,
-                    filename=pdf_filename,
+                    filename=display_filename,
                     caption=(
                         f"📄 *Executive Report B2B:* {district_name}\n"
                         f"Preparato per: *{full_name}*\n\n"
@@ -225,8 +233,8 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
                     parse_mode="Markdown"
                 )
 
-            if os.path.exists(pdf_filename):
-                os.remove(pdf_filename)
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
     except Exception as e:
         await update.message.reply_text(f"⚠️ Errore durante la generazione del PDF: {e}")
 

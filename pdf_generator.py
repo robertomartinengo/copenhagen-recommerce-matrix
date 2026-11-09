@@ -2,6 +2,23 @@ from fpdf import FPDF
 from typing import Tuple
 from ai_reporter import generate_executive_narrative
 
+
+def _sanitize_filename(name: str) -> str:
+    """Sostituisce i caratteri non sicuri per i filesystem con underscore.
+
+    Evita crash quando il nome distretto contiene '/', '\\', ':', '*', '?',
+    '\"', '<', '>', '|' o spazi (es. 'Vesterbro / Kongens Enghave').
+    """
+    unsafe = '<>:"/\\|?* '
+    safe = name.strip()
+    for ch in unsafe:
+        safe = safe.replace(ch, '_')
+    # Collassa underscore multipli
+    while '__' in safe:
+        safe = safe.replace('__', '_')
+    return safe.strip('_') or "report"
+
+
 def _clean_text(text: str) -> str:
     """Converte e pulisce il testo rimuovendo caratteri non supportati da FPDF standard."""
     if not text:
