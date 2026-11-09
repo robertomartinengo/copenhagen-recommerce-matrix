@@ -1,3 +1,4 @@
+import argparse
 from database import supabase
 from cpi_engine import calculate_dynamic_cpi
 
@@ -92,6 +93,17 @@ INITIAL_ZONES = [
     }
 ]
 
+# ---------------------------------------------------------------------------
+# Nota sui district_code
+# I codici postali danesi sono composti da 4 cifre (es. 1000 per Indre By).
+# I suffissi aggiuntivi (es. "E" in DK-2300-E per Amager Øst) sono valori
+# interni inventati per distinguere sotto-zone o aree che condividono lo
+# stesso codice postale ufficiale. Non corrispondono a una suddivisione
+# amministrativa danese ufficiale: sono etichette locali del progetto.
+# district_code è colonna UNIQUE in copenhagen_zones: usata come chiave
+# di upsert in seed_data.py.
+# ---------------------------------------------------------------------------
+
 POPULATION_MIN: int = min(int(z["population_gen_z"]) for z in INITIAL_ZONES)  # type: ignore
 POPULATION_MAX: int = max(int(z["population_gen_z"]) for z in INITIAL_ZONES)  # type: ignore
 INCOME_MIN: float = min(float(z["avg_income_dkk"]) for z in INITIAL_ZONES)  # type: ignore
@@ -116,26 +128,43 @@ def compute_demographics_score(zone: dict) -> float:
     return round(0.6 * gen_z_norm + 0.4 * income_norm, 2)
 
 
-def run_seed():
-    print("--> Avvio reset e seeding della tabella copenhagen_zones...")
-    
-    # 1. Pulizia tabella esistente
-    supabase.table("copenhagen_zones").delete().neq("id", 0).execute()
-    print("--> Tabella svuotata.")
+def run_seed(reset: bool = False):
+    if reset:
+        print("--> Modalità RESET: svuotamento tabella copenhagen_zones...")
+        supabase.table("copenhagen_zones").delete().neq("id", 0).execute()
+        print("--> Tabella svuotata.")
+    else:
+        print("--> Avvio upsert su copenhagen_zones (chiave: district_code)...")
 
-    # 2. Calcolo Demographics score per ogni zona (D-016)
+    # Calcolo Demographics score per ogni zona (D-016)
     for zone in INITIAL_ZONES:
         zone["demographics_score"] = compute_demographics_score(zone)
 
-    # 3. Inserimento e calcolo CPI baseline
+    # Calcolo CPI baseline e preparazione dati
     prepared_data = []
     for zone in INITIAL_ZONES:
         score = calculate_dynamic_cpi(zone, business_type="curated_vintage")["cpi_score"]
         zone["cpi_score"] = score
         prepared_data.append(zone)
 
-    supabase.table("copenhagen_zones").insert(prepared_data).execute()
-    print(f"--> Seeding completato con successo! Inserite {len(prepared_data)} zone.")
+    if reset:
+        supabase.table("copenhagen_zones").insert(prepared_data).execute()
+        print(f"--> Seeding completato con successo! Inserite {len(prepared_data)} zone.")
+    else:
+        supabase.table("copenhagen_zones").upsert(
+            prepared_data, on_conflict="district_code"
+        ).execute()
+        print(f"--> Upsert completato con successo! Elaborate {len(prepared_data)} zone.")
+
 
 if __name__ == "__main__":
-    run_seed()
+    parser = argparse.ArgumentParser(
+        description="Seed della tabella copenhagen_zones."
+    )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Svuota la tabella prima di inserire (operazione distruttiva).",
+    )
+    args = parser.parse_args()
+    run_seed(reset=args.reset)
