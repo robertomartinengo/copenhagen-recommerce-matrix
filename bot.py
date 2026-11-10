@@ -1,3 +1,4 @@
+import html
 import os
 import re
 import tempfile
@@ -19,6 +20,19 @@ from pdf_generator import generate_executive_pdf, _sanitize_filename
 
 load_dotenv(override=True)
 
+
+def _md_to_html(text: str) -> str:
+    """Converte i semplici marcatori Markdown (*grassetto*, `codice`) in HTML,
+    escapando prima tutto il resto per evitare iniezione di tag HTML o
+    rottura del rendering quando i contenuti dinamici (nomi utente, distretti,
+    email) contengono caratteri come _ * [ ] ( ) etc."""
+    escaped = html.escape(text)
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", escaped)
+    escaped = re.sub(r"\*(.+?)\*", r"<b>\1</b>", escaped)
+    escaped = re.sub(r"`(.+?)`", r"<code>\1</code>", escaped)
+    return escaped
+
+
 API_URL = os.getenv("API_URL", "http://127.0.0.1:10000")
 
 # Stati della conversazione per la Lead Generation
@@ -38,7 +52,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     if update.message:
-        await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
+        await update.message.reply_text(
+            _md_to_html(welcome_text), parse_mode="HTML", reply_markup=reply_markup
+        )
     return ConversationHandler.END
 
 
@@ -55,7 +71,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             [InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")]
         ]
         text = "🎯 *Seleziona il tuo Modello di Business*\n\nIl punteggio CPI verrà ricalcolato ricalibrando i pesi su misura per la tua attività:"
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(
+            _md_to_html(text), parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         return ConversationHandler.END
 
     elif query.data.startswith("calc_top:"):
@@ -86,7 +104,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     [InlineKeyboardButton("⬅️ Cambia Modello", callback_data="top_zone")],
                     [InlineKeyboardButton("🏠 Menu Principale", callback_data="menu")]
                 ]
-                await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+                await query.edit_message_text(
+                    _md_to_html(text),
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                )
         except Exception as e:
             await query.edit_message_text(f"⚠️ Errore nel calcolo del CPI dinamico: {e}")
         return ConversationHandler.END
@@ -107,7 +129,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     msg += f"*{idx}. {z['name']}* — CPI: `{cpi_val:.1f}`\n"
                     keyboard.append([InlineKeyboardButton(f"📄 PDF {z['name']}", callback_data=f"lead:{z['name']}:curated_vintage")])
                 keyboard.append([InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")])
-                await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+                await query.edit_message_text(
+                    _md_to_html(msg), parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard)
+                )
         except Exception as e:
             await query.edit_message_text(f"⚠️ Errore nel recupero della lista: {e}")
         return ConversationHandler.END
@@ -123,9 +147,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data["b_type"] = b_type
 
         await query.message.reply_text(
-            "👤 *Richiesta Report Executive B2B*\n\n"
-            "Inserisci il tuo *Nome e Cognome* (o Nome Azienda) per intestare il report:",
-            parse_mode="Markdown"
+            _md_to_html(
+                "👤 *Richiesta Report Executive B2B*\n\n"
+                "Inserisci il tuo *Nome e Cognome* (o Nome Azienda) per intestare il report:"
+            ),
+            parse_mode="HTML",
         )
         return WAITING_NAME
 
@@ -140,10 +166,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             [InlineKeyboardButton("🎯 Qual è la Zona Top?", callback_data="top_zone")],
             [InlineKeyboardButton("📋 Lista Distretti Promettenti", callback_data="list_zones")]
         ]
-        await query.edit_message_text(welcome_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(
+            _md_to_html(welcome_text),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
         return ConversationHandler.END
-
-    return ConversationHandler.END
 
 
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -151,9 +179,11 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data["full_name"] = name
 
     await update.message.reply_text(
-        f"Grazie *{name}*!\n\n"
-        "✉️ Ora inserisci la tua *Email professionale* a cui inviare aggiornamenti o essere ricontattato:",
-        parse_mode="Markdown"
+        _md_to_html(
+            f"Grazie *{name}*!\n\n"
+            "✉️ Ora inserisci la tua *Email professionale* a cui inviare aggiornamenti o essere ricontattato:"
+        ),
+        parse_mode="HTML",
     )
     return WAITING_EMAIL
 
@@ -168,8 +198,10 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     
     if not re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
         await update.message.reply_text(
-            "⚠️ Formato email non valido. Per favore inserisci un'email valida (es. *nome@azienda.com*):",
-            parse_mode="Markdown"
+            _md_to_html(
+                "⚠️ Formato email non valido. Per favore inserisci un'email valida (es. *nome@azienda.com*):"
+            ),
+            parse_mode="HTML",
         )
         return WAITING_EMAIL
 
@@ -199,7 +231,10 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         print("⚠️ [SUPABASE] Client Supabase non configurato nel bot!", flush=True)
 
     # 2. Generazione ed invio del PDF
-    await update.message.reply_text("✅ *Dati registrati con successo!* Generazione del Report PDF B2B in corso...", parse_mode="Markdown")
+    await update.message.reply_text(
+        _md_to_html("✅ *Dati registrati con successo!* Generazione del Report PDF B2B in corso..."),
+        parse_mode="HTML",
+    )
 
     try:
         async with httpx.AsyncClient() as client:
@@ -225,12 +260,12 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
                 await update.message.reply_document(
                     document=doc,
                     filename=display_filename,
-                    caption=(
+                    caption=_md_to_html(
                         f"📄 *Executive Report B2B:* {district_name}\n"
                         f"Preparato per: *{full_name}*\n\n"
                         f"Grazie per aver utilizzato Copenhagen Re-Commerce Matrix!"
                     ),
-                    parse_mode="Markdown"
+                    parse_mode="HTML",
                 )
 
             if os.path.exists(pdf_path):
