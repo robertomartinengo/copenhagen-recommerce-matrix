@@ -244,7 +244,14 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             zones = res.json()
             zone_data = next((z for z in zones if z["name"].lower() == district_name.lower()), None)
             if not zone_data:
-                zone_data = zones[0]
+                await update.message.reply_text(
+                    _md_to_html(
+                        f"⚠️ Il distretto *{district_name}* non è stato trovato. "
+                        "Il report PDF non è stato generato."
+                    ),
+                    parse_mode="HTML",
+                )
+                return ConversationHandler.END
 
             # Nome sicuro per il file mostrato all'utente (niente slash, spazi, ecc.)
             safe_district = _sanitize_filename(district_name)
