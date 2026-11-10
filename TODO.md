@@ -44,6 +44,14 @@ Legend: `[ ]` todo, `[~]` partly done, `[x]` done. **VERIFY** = I could not conf
 | Landing page, pricing, API-as-a-service | [ ] | Not started |
 | GDPR | [ ] | Nothing implemented yet |
 
+## 1.06 Legalità e consenso (GDPR) [ ]
+- [ ] 1.06.1 Aggiungere consenso esplicito + informativa breve prima di scrivere `full_name`, `email`, `telegram_user_id` nella tabella `leads` (bot e qualsiasi futuro form).
+- [ ] 1.06.2 Aggiungere colonne `consent_version`, `consent_at`, `privacy_notice_url` a `leads` (migrazione SQL additiva).
+- [ ] 1.06.3 Aggiungere endpoint `DELETE /leads/{telegram_user_id}` + cancellazione su richiesta (diritto all'oblio), con log di cancellazione.
+- [ ] 1.06.4 Minimizzazione: non salvare mai dati sensibili (numeri di telefono, indirizzi, documenti) né inviare dati personali a Gemini.
+- [ ] 1.06.5 Archiviazione / de-identificazione: piano per anonimizzare i lead dopo X mesi (definire X in DECISIONS.md).
+- [ ] 1.06.6 Tracciabilità: ogni scrittura/lettura/cancellazione su `leads` genera un log (chi, quando, cosa) senza contenere dati personali.
+
 ## Confirmed database facts (from the Supabase table definitions)
 
 - `copenhagen_zones` columns: `id`, `name`, `district_code` (UNIQUE, NOT NULL), `population_gen_z` (integer count), `avg_income_dkk`, `waste_supply_score`, `market_gap_score`, `cpi_score` (default 0), `created_at`.

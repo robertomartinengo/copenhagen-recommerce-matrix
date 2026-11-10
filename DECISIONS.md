@@ -153,7 +153,26 @@ if a decision changes, add a new entry and mark the old one "Superseded by D-0XX
 - Consequence: the dashboard depends on the API returning `cpi_score`; if the
   API is unreachable, the dashboard shows an error instead of computing locally.
 
-## Narrative log (facts usable for pitch and personal statement)
+## D-018 GDPR consent and data minimisation for leads
+- Status: Accepted.
+- Decision: before writing any personal data (`full_name`, `email`,
+  `telegram_user_id`) to `leads`, the bot must obtain explicit consent with a
+  clear privacy notice. The table must store `consent_version`, `consent_at`,
+  `privacy_notice_url` alongside the personal fields. No sensitive data
+  (phone numbers beyond Telegram ID, addresses, documents) is stored or sent
+  to AI models. A `DELETE /leads/{telegram_user_id}` endpoint must exist for
+  the right to erasure, with an audit log of who/what/when (no personal data
+  inside the log). Leads older than 12 months are anonymised (name/email
+  replaced with NULL, metadata kept for stats).
+- Reason: GDPR compliance (consent, data minimisation, right to be forgotten,
+  storage limitation) is mandatory for any personal-data processing, even in
+  an early-stage product with no paying users yet.
+- Discarded: writing leads without consent (illegal); storing phone numbers
+  or addresses (unnecessary minimisation breach); sending personal data to
+  Gemini (prohibited by .clinerules rule 10).
+- Consequence: `leads` schema needs an additive migration (new columns are
+  nullable so existing rows stay valid); bot must gate the lead funnel behind
+  a consent step before saving.
 Only verifiable facts. Add one line after each significant fix or trade-off.
 
 - 2026-11-05: the same zone data produces different rankings for four business models (proved by `test_business_type_changes_ranking`).
