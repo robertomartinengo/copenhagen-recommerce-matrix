@@ -109,6 +109,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup(keyboard),
                 )
+            else:
+                await query.edit_message_text(
+                    _md_to_html(
+                        "⚠️ Errore nel recupero della zona top. Riprova più tardi."
+                    ),
+                    parse_mode="HTML",
+                )
         except Exception as e:
             await query.edit_message_text(f"⚠️ Errore nel calcolo del CPI dinamico: {e}")
         return ConversationHandler.END
@@ -131,6 +138,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 keyboard.append([InlineKeyboardButton("⬅️ Torna al Menu", callback_data="menu")])
                 await query.edit_message_text(
                     _md_to_html(msg), parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            else:
+                await query.edit_message_text(
+                    _md_to_html(
+                        "⚠️ Errore nel recupero della lista distretti. Riprova più tardi."
+                    ),
+                    parse_mode="HTML",
                 )
         except Exception as e:
             await query.edit_message_text(f"⚠️ Errore nel recupero della lista: {e}")
@@ -277,6 +291,13 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
+            else:
+                await update.message.reply_text(
+                    _md_to_html(
+                        "⚠️ Errore nel recupero dei dati per il PDF. Riprova più tardi."
+                    ),
+                    parse_mode="HTML",
+                )
     except Exception as e:
         await update.message.reply_text(f"⚠️ Errore durante la generazione del PDF: {e}")
 
