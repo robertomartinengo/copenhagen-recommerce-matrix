@@ -35,7 +35,33 @@ def _md_to_html(text: str) -> str:
     return escaped
 
 
+
+async def _fetch_with_retry(client: httpx.AsyncClient, url: str) -> httpx.Response:
+    """Esegue una GET con un retry in caso di timeout o errore di rete.
+
+    Render free tier può impiegare fino a ~1 minuto per svegliarsi dopo il
+    cold start; alziamo il timeout a 30 s e riprovamo una volta se il primo
+    tentativo fallisce.
+    """
+    last_error: Exception | None = None
+    for attempt in range(API_MAX_RETRIES):
+        try:
+            return await client.get(url, timeout=API_TIMEOUT)
+        except (httpx.TimeoutException, httpx.NetworkError) as e:
+            last_error = e
+            if attempt < API_MAX_RETRIES - 1:
+                await asyncio.sleep(2)
+    if last_error is not None:
+        raise last_error
+    return await client.get(url, timeout=API_TIMEOUT)
+
 API_URL = os.getenv("API_URL", "http://127.0.0.1:10000")
+
+# Timeout e retry per le chiamate API. Render free tier può impiegare fino a
+# ~1 minuto per svegliarsi dopo il cold start; un singolo tentativo da 10 s
+# non è sufficiente.
+API_TIMEOUT = 30.0
+API_MAX_RETRIES = 2  # primo tentativo + un retry
 
 # Stati della conversazione per la Lead Generation
 WAITING_CONSENT, WAITING_NAME, WAITING_EMAIL = range(3)
@@ -85,7 +111,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         try:
             async with httpx.AsyncClient() as client:
-                res = await client.get(f"{API_URL}/zones/top?business_type={b_type}", timeout=10.0)
+                res = await _fetch_with_retry(client, f"{API_URL}/zones/top?business_type={b_type}")
             
             if res.status_code == 200:
                 data = res.json()
@@ -127,7 +153,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif query.data == "list_zones":
         try:
             async with httpx.AsyncClient() as client:
-                res = await client.get(f"{API_URL}/zones", timeout=10.0)
+                res = await _fetch_with_retry(client, f"{API_URL}/zones")
 
             if res.status_code == 200:
                 zones = res.json()
@@ -335,7 +361,7 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     try:
         async with httpx.AsyncClient() as client:
-            res = await client.get(f"{API_URL}/zones?business_type={b_type}", timeout=10.0)
+            res = await _fetch_with_retry(client, f"{API_URL}/zones?business_type={b_type}")
 
         if res.status_code == 200:
             zones = res.json()
