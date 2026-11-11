@@ -1,7 +1,15 @@
 import os
+
+import pdf_generator
 from pdf_generator import generate_executive_pdf
 
-def test_generate_executive_pdf_success(tmp_path):
+
+def test_generate_executive_pdf_success(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        pdf_generator,
+        "generate_executive_narrative",
+        lambda *_args, **_kwargs: "Analisi di test offline.",
+    )
     sample_district = {
         "name": "Nørrebro",
         "cpi_score": 8.9,

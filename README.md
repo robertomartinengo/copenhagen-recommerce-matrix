@@ -78,6 +78,12 @@ Direct conversational interface designed for the end-user/retailer:
 
 
 
+## 🔒 Lead data and GDPR
+
+The Telegram lead funnel shows the privacy notice and requires explicit consent before collecting or storing personal data. The bot stores the name, professional email, Telegram ID/username, selected business profile and district together with the accepted notice version and timestamp. Personal data is never included in AI prompts.
+
+Users can delete their data with the Telegram command `/delete_my_data`. The API also exposes `DELETE /leads/{telegram_user_id}`, protected by the `X-Lead-Delete-Token` header. Identifying fields are anonymised after 12 months. See [PRIVACY.md](PRIVACY.md) for the complete notice.
+
 ## 🧪 Testing & Quality Assurance
 
 *The project guarantees a high standard of code quality with 100% test coverage:*

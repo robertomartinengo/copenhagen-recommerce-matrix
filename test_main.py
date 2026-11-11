@@ -83,12 +83,26 @@ class FakeQuery:
         return FakeResponse(self._data)
 
 
+class FakeRPC:
+    def __init__(self, result):
+        self._result = result
+
+    def execute(self):
+        return FakeResponse(self._result)
+
+
 class FakeSupabase:
-    def __init__(self, data):
+    def __init__(self, data, rpc_result=0):
         self._data = data
+        self._rpc_result = rpc_result
+        self.rpc_calls = []
 
     def table(self, _name):
         return FakeQuery(self._data)
+
+    def rpc(self, function_name, parameters):
+        self.rpc_calls.append((function_name, parameters))
+        return FakeRPC(self._rpc_result)
 
 
 @pytest.fixture
@@ -129,4 +143,37 @@ def test_top_zone_empty_returns_empty_dict(monkeypatch):
     response = client.get("/zones/top")
     assert response.status_code == 200
     assert response.json() == {}
+
+
+def test_delete_lead_requires_valid_token(monkeypatch):
+    fake = FakeSupabase([], rpc_result=1)
+    monkeypatch.setattr(main, "supabase", fake)
+    monkeypatch.setenv("LEAD_DELETE_TOKEN", "test-token")
+
+    response = client.delete("/leads/123")
+
+    assert response.status_code == 401
+    assert fake.rpc_calls == []
+
+
+def test_delete_lead_calls_audit_function(monkeypatch):
+    fake = FakeSupabase([], rpc_result=2)
+    monkeypatch.setattr(main, "supabase", fake)
+    monkeypatch.setenv("LEAD_DELETE_TOKEN", "test-token")
+
+    response = client.delete(
+        "/leads/123", headers={"X-Lead-Delete-Token": "test-token"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": 2}
+    assert fake.rpc_calls == [
+        (
+            "delete_lead_data",
+            {
+                "p_telegram_user_id": 123,
+                "p_actor": "authenticated_api_request",
+            },
+        )
+    ]
 

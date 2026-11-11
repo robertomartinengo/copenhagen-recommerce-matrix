@@ -180,4 +180,26 @@ Only verifiable facts. Add one line after each significant fix or trade-off.
 - 2026-11-05: a security review found the leads table readable and deletable with the public key; row-level security was enabled and the privileges revoked the same day.
 - 2026-11-07: CI pipeline configured with dedicated development dependencies (requirements-dev.txt) and strict linting/typing checks (ruff + mypy); 26 unit tests passing.
 - 2026-11-08: LLM autorouting implemented (Gemini → Groq → OpenRouter → deterministic fallback) via `autorouting.py`; `ai_reporter.py` updated accordingly.
+- 2026-11-10: PDF rendering and its AI narration run in a worker thread, verified by a thread-ID test; 26 offline tests pass.
+- 2026-11-10: the bot gates lead persistence on explicit consent and the database mutation/audit path is implemented with an additive migration pending production deployment.
+
+## D-019 Consent-aware, auditable lead persistence
+- Status: Implemented in code; production migration pending.
+- Decision: lead writes, deletion, and 12-month anonymisation go through
+  PostgreSQL functions in `supabase/migrations/20261110215036_add_gdpr_lead_consent.sql`.
+  The insert function rejects missing consent metadata and writes an audit event
+  in the same transaction. The audit table contains action, actor, timestamp,
+  and affected-row count only. The bot offers explicit accept/decline controls
+  before collecting personal data. The API deletion endpoint requires the
+  `LEAD_DELETE_TOKEN` header; `/delete_my_data` lets a Telegram user delete
+  their own record directly.
+- Reason: application-only checks can be bypassed or fail between validation and
+  persistence. Database functions make consent, mutation, and audit atomic while
+  preserving RLS and server-only credentials.
+- Discarded: direct `table("leads").insert(...)` without consent metadata;
+  unauthenticated public deletion; storing lead IDs or field values in logs.
+- Consequences: `leads` gains nullable `consent_version`, `consent_at`, and
+  `privacy_notice_url` columns. Retention is 12 months, after which identifying
+  fields are anonymized while aggregate metadata is retained. The migration must
+  be applied and the service-role key verified before production use.
 

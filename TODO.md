@@ -20,7 +20,7 @@ Legend: `[ ]` todo, `[~]` partly done, `[x]` done. **VERIFY** = I could not conf
 | Roadmap item | Status | Notes |
 |---|---|---|
 | Business personas / dynamic weights | [~] | 4 profiles in `cpi_engine.py`; weights are arbitrary and unvalidated; no onboarding quiz |
-| Live data (Overpass, Open Data) | [ ] | Zone data is hand-written in `seed_data.py`, which is currently broken |
+| Live data (Overpass, Open Data) | [ ] | Zone data is hand-written in `seed_data.py`; the seed script is now idempotent (1.04), but values are not sourced |
 | Time series | [ ] | No history table |
 | Commercial real estate data | [ ] | Not started; API availability unknown (VERIFY) |
 | Saturation index | [ ] | Needs monthly competitor snapshots first |
@@ -39,18 +39,10 @@ Legend: `[ ]` todo, `[~]` partly done, `[x]` done. **VERIFY** = I could not conf
 | White-label, PPTX, newsletter | [ ] | Not started |
 | Rate limiting, cache, API protection | [ ] | Dashboard has a 60 s `st.cache_data`; API is open |
 | Sentry | [ ] | Not started |
-| CI | [~] | Workflow exists but is almost certainly failing (see 1.01) |
+| CI | [x] | Ruff and mypy steps run in CI; 26 local tests passing (1.01) |
 | CD, DB backups | [ ] | VERIFY what Render/Supabase do today |
 | Landing page, pricing, API-as-a-service | [ ] | Not started |
-| GDPR | [ ] | Nothing implemented yet |
-
-## 1.06 Legalità e consenso (GDPR) [ ]
-- [ ] 1.06.1 Aggiungere consenso esplicito + informativa breve prima di scrivere `full_name`, `email`, `telegram_user_id` nella tabella `leads` (bot e qualsiasi futuro form).
-- [ ] 1.06.2 Aggiungere colonne `consent_version`, `consent_at`, `privacy_notice_url` a `leads` (migrazione SQL additiva).
-- [ ] 1.06.3 Aggiungere endpoint `DELETE /leads/{telegram_user_id}` + cancellazione su richiesta (diritto all'oblio), con log di cancellazione.
-- [ ] 1.06.4 Minimizzazione: non salvare mai dati sensibili (numeri di telefono, indirizzi, documenti) né inviare dati personali a Gemini.
-- [ ] 1.06.5 Archiviazione / de-identificazione: piano per anonimizzare i lead dopo X mesi (definire X in DECISIONS.md).
-- [ ] 1.06.6 Tracciabilità: ogni scrittura/lettura/cancellazione su `leads` genera un log (chi, quando, cosa) senza contenere dati personali.
+| GDPR | [~] | Consent flow, notice, deletion API/command, retention and audit code implemented; migration not yet applied to production (2.01-2.06) |
 
 ## Confirmed database facts (from the Supabase table definitions)
 
@@ -77,8 +69,8 @@ Done when: CI is green, the bot answers every button without freezing the API, n
   - [x] e. Update `test_main.py` for the new behaviour (the test `test_demographics_falls_back_to_cpi_score` must change).
 - [x] **1.03 Dashboard double-computes the CPI.** Call `/zones?business_type=...` and remove the local `calculate_dynamic_cpi` pass in `dashboard.py` (or stop the API from overwriting `cpi_score`). One place computes the CPI. → Done: `dashboard.py` no longer imports or calls `calculate_dynamic_cpi`; it reads `cpi_score` from the API. Documented as D-017.
 - [x] **1.04 `seed_data.py` is broken** (imports non-existent `compute_cpi`) and wipes the whole table with `delete()`. Rewrite it to upsert on `district_code` (the UNIQUE column), use `calculate_dynamic_cpi`, include `demographics_score`, and require an explicit `--reset` flag to delete. The `district_code` values look like postal codes plus invented suffixes (e.g. `DK-2300-E`): document what they mean. → Done: `argparse --reset` flag, `upsert(on_conflict="district_code")`, `demographics_score` incluso, documentazione district_code aggiunta.
-- [ ] **1.05 PDF crash for "Vesterbro / Kongens Enghave".** The `/` ends up in the filename. Generate the PDF in memory (`BytesIO`/`output()` bytes) or in `tempfile`, never from user/DB text; also fixes concurrent users overwriting each other.
-- [ ] **1.06 Event loop blocked.** PDF + Gemini run synchronously inside an async handler on the same loop as the API. Wrap with `asyncio.to_thread`.
+- [x] **1.05 PDF crash for "Vesterbro / Kongens Enghave".** The `/` ends up in the filename. Generate the PDF in memory (`BytesIO`/`output()` bytes) or in `tempfile`, never from user/DB text; also fixes concurrent users overwriting each other. → Done: `_sanitize_filename()` produces a filesystem-safe display name and each request uses a unique `NamedTemporaryFile`; verified by `test_bot.py`.
+- [x] **1.06 Event loop blocked.** PDF + Gemini run synchronously inside an async handler on the same loop as the API. Wrap with `asyncio.to_thread`. → Done: `_generate_executive_pdf()` delegates the complete PDF/AI operation to a worker thread; verified by a test that asserts a different thread ID.
 - [x] **1.07 Telegram Markdown breaks on user names** (`_`, `*`). Use HTML parse mode with `html.escape`, or `telegram.helpers.escape_markdown`. → Done: added `_md_to_html()` helper in `bot.py` that escapes everything via `html.escape` then restores `*bold*` and `` `code` ``. All `parse_mode="Markdown"` replaced with `parse_mode="HTML"` and all dynamic content (names, districts, email) is escaped.
 - [x] **1.08 Wrong district in the PDF.** `receive_email` falls back to `zones[0]` when the name is not found. Show an error instead. → Done: if `zone_data` is `None`, send an error message to the user and end the conversation without generating a PDF.
 - [x] **1.09 Silent bot branches.** Non-200 responses from the API leave the user without any message (`calc_top`, `list_zones`, PDF flow). Always answer. → Done: added `else` branches in `calc_top`, `list_zones`, and PDF flow that send an error message when `res.status_code != 200`.
@@ -112,12 +104,12 @@ Done when: CI is green, the bot answers every button without freezing the API, n
 Done when: README, docs and the Project instructions match the code, and the `leads` flow has notice, consent and deletion.
 
 ### GDPR (not legal advice; Rob is the data controller)
-- [ ] **2.01 Privacy notice before collection:** who collects, what (name, email, Telegram ID, username, district, profile), why, how long, how to exercise rights, contact.
-- [ ] **2.02 Separate consent for being contacted** (distinct from receiving the report); add columns to `leads` for `contact_consent` (boolean), `consent_at` (timestamptz) and `privacy_notice_version` (text); today the table has none of them.
-- [ ] **2.03 `/delete_my_data`** command (and email request path) that deletes the lead and every related row (favorites, subscriptions later).
-- [ ] **2.04 Retention period** decided and enforced (scheduled delete).
-- [ ] **2.05 Data minimization review:** is `telegram_username` needed? Confirm the Supabase region is in the EU (VERIFY).
-- [ ] **2.06 Keep PII out of the LLM prompt** (today it is out; keep it that way and note it in `DECISIONS.md`).
+- [~] **2.01 Privacy notice before collection:** who collects, what (name, email, Telegram ID, username, district, profile), why, how long, how to exercise rights, contact. → Implemented in `PRIVACY.md` and shown by the bot before data collection; VERIFY the controller contact details with Rob.
+- [~] **2.02 Separate consent for being contacted** (distinct from receiving the report); add columns to `leads` for `contact_consent` (boolean), `consent_at` (timestamptz) and `privacy_notice_version` (text); today the table has none of them. → Report consent is implemented with `consent_version`, `consent_at`, and `privacy_notice_url`; migration not yet applied. Separate marketing/contact consent is still not implemented.
+- [~] **2.03 `/delete_my_data`** command (and email request path) that deletes the lead and every related row (favorites, subscriptions later). → Telegram command and protected `DELETE /leads/{telegram_user_id}` API implemented with atomic audit; VERIFY against production after migration. The email request path and future related tables remain.
+- [~] **2.04 Retention period** decided and enforced (scheduled delete). → 12-month anonymisation function, script, and monthly GitHub Actions schedule implemented; VERIFY the schedule against production after migration.
+- [~] **2.05 Data minimization review:** is `telegram_username` needed? Confirm the Supabase region is in the EU (VERIFY). → The flow stores only the fields listed in `PRIVACY.md` and sends no personal data to AI providers; the need to retain `telegram_username` and the Supabase region remain VERIFY.
+- [x] **2.06 Keep PII out of the LLM prompt** (today it is out; keep it that way and note it in `DECISIONS.md`). → The PDF/AI flow receives zone aggregates only; covered by D-018 and D-019.
 
 ### Honesty and documentation
 - [ ] **2.07 README:** remove or build the claims about radar chart, GeoJSON choropleth, Plotly, "Premium tier", PDF download from the dashboard, "100% coverage", "mypy 100%". Replace static badges with real ones or delete them.

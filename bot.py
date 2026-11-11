@@ -2,6 +2,7 @@ import html
 import os
 import re
 import tempfile
+from datetime import datetime, timezone
 from supabase import create_client, Client
 import asyncio
 import httpx
@@ -17,6 +18,7 @@ from telegram.ext import (
     ContextTypes
 )
 from pdf_generator import generate_executive_pdf, _sanitize_filename
+from privacy import PRIVACY_NOTICE_URL, PRIVACY_NOTICE_VERSION
 
 load_dotenv(override=True)
 
@@ -36,7 +38,9 @@ def _md_to_html(text: str) -> str:
 API_URL = os.getenv("API_URL", "http://127.0.0.1:10000")
 
 # Stati della conversazione per la Lead Generation
-WAITING_NAME, WAITING_EMAIL = range(2)
+WAITING_CONSENT, WAITING_NAME, WAITING_EMAIL = range(3)
+
+CONSENT_VERSION = PRIVACY_NOTICE_VERSION
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -155,11 +159,45 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         parts = query.data.split(":")
         district_name = parts[1]
         b_type = parts[2] if len(parts) > 2 else "curated_vintage"
-        
-        # Salva le informazioni nel contesto dell'utente
+
+        # Salva solo i parametri non personali nel contesto dell'utente.
         context.user_data["district"] = district_name
         context.user_data["b_type"] = b_type
 
+        consent_keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "✅ Accetto e voglio il report",
+                        callback_data="consent:accept",
+                    ),
+                    InlineKeyboardButton(
+                        "❌ Rifiuto",
+                        callback_data="consent:decline",
+                    ),
+                ]
+            ]
+        )
+        await query.message.reply_text(
+            _md_to_html(
+                "🔒 *Informativa privacy e consenso*\n\n"
+                "Per preparare il report raccogliamo nome, email, ID Telegram, username, "
+                "modello di business e distretto. I dati sono usati solo per erogare il "
+                "report e le comunicazioni richieste, vengono conservati per al massimo "
+                "12 mesi e non sono inviati ai modelli AI.\n\n"
+                "Puoi chiedere la cancellazione con `/delete_my_data`. "
+                f"Informativa completa: {PRIVACY_NOTICE_URL}\n\n"
+                "Vuoi procedere con il trattamento dei dati per ricevere il report?"
+            ),
+            parse_mode="HTML",
+            reply_markup=consent_keyboard,
+        )
+        return WAITING_CONSENT
+
+    elif query.data == "consent:accept":
+        context.user_data["consent_version"] = CONSENT_VERSION
+        context.user_data["consent_at"] = datetime.now(timezone.utc).isoformat()
+        context.user_data["privacy_notice_url"] = PRIVACY_NOTICE_URL
         await query.message.reply_text(
             _md_to_html(
                 "👤 *Richiesta Report Executive B2B*\n\n"
@@ -168,6 +206,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             parse_mode="HTML",
         )
         return WAITING_NAME
+
+    elif query.data == "consent:decline":
+        context.user_data.pop("consent_version", None)
+        context.user_data.pop("consent_at", None)
+        context.user_data.pop("privacy_notice_url", None)
+        await query.message.reply_text(
+            _md_to_html(
+                "Nessun dato personale verrà salvato. Puoi comunque usare il bot per "
+                "consultare le zone raccomandate."
+            ),
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
 
     elif query.data == "menu":
         welcome_text = (
@@ -207,6 +258,19 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
+async def _generate_executive_pdf(zone_data: dict, filename: str) -> str:
+    """Generate the PDF outside the event-loop thread.
+
+    PDF rendering also calls the synchronous AI reporter, so the whole operation
+    is delegated to a worker thread to keep the API and bot responsive.
+    """
+    return await asyncio.to_thread(
+        generate_executive_pdf,
+        zone_data,
+        filename=filename,
+    )
+
+
 async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     email = update.message.text.strip()
     
@@ -225,20 +289,39 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     district_name = context.user_data.get("district", "Nørrebro")
     b_type = context.user_data.get("b_type", "curated_vintage")
     full_name = context.user_data.get("full_name", "Utente B2B")
+    consent_version = context.user_data.get("consent_version")
+    consent_at = context.user_data.get("consent_at")
+    privacy_notice_url = context.user_data.get("privacy_notice_url")
 
-    # 1. Salvataggio DIRETTO su Supabase ( Tabella 'leads' )
+    if not consent_version or not consent_at or not privacy_notice_url:
+        await update.message.reply_text(
+            _md_to_html(
+                "⚠️ Per salvare i dati è necessario il consenso all'informativa privacy. "
+                "Richiedi nuovamente il report per continuare."
+            ),
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
+
+    # 1. Salvataggio DIRETTO su Supabase tramite funzione atomica con audit.
     if supabase:
         try:
-            lead_data = {
-                "telegram_user_id": user.id,
-                "telegram_username": user.username,
-                "full_name": full_name,
-                "email": email,
-                "business_type": b_type,
-                "interested_district": district_name
-            }
-            res = supabase.table("leads").insert(lead_data).execute()
-            print(f"✅ [SUPABASE] Lead salvato con successo: {res}", flush=True)
+            supabase.rpc(
+                "insert_lead_with_consent",
+                {
+                    "p_telegram_user_id": user.id,
+                    "p_telegram_username": user.username,
+                    "p_full_name": full_name,
+                    "p_email": email,
+                    "p_business_type": b_type,
+                    "p_interested_district": district_name,
+                    "p_consent_version": consent_version,
+                    "p_consent_at": consent_at,
+                    "p_privacy_notice_url": privacy_notice_url,
+                    "p_actor": "telegram_bot",
+                },
+            ).execute()
+            print("✅ [SUPABASE] Lead salvato con consenso registrato.", flush=True)
         except Exception as e:
             print(f"❌ [SUPABASE ERR] Errore inserimento lead: {e}", flush=True)
     else:
@@ -275,7 +358,7 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             with tempfile.NamedTemporaryFile(suffix=".pdf", prefix="exec_report_", delete=False) as tmp:
                 pdf_path = tmp.name
 
-            generate_executive_pdf(zone_data, filename=pdf_path)
+            await _generate_executive_pdf(zone_data, pdf_path)
 
             with open(pdf_path, "rb") as doc:
                 await update.message.reply_document(
@@ -304,6 +387,37 @@ async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return ConversationHandler.END
 
 
+async def delete_my_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Delete all data stored for the requesting Telegram user."""
+    user = update.effective_user
+    if not supabase:
+        await update.message.reply_text(
+            _md_to_html("⚠️ Il servizio di cancellazione non è configurato.")
+        )
+        return ConversationHandler.END
+
+    try:
+        response = supabase.rpc(
+            "delete_lead_data",
+            {
+                "p_telegram_user_id": user.id,
+                "p_actor": "telegram_user_request",
+            },
+        ).execute()
+        deleted = getattr(response, "data", 0) or 0
+        if isinstance(deleted, list):
+            deleted = deleted[0] if deleted else 0
+        if deleted:
+            message = "✅ I tuoi dati personali sono stati cancellati."
+        else:
+            message = "ℹ️ Non risultano dati personali da cancellare per questo profilo."
+    except Exception:
+        message = "⚠️ Non è stato possibile completare la cancellazione. Riprova più tardi."
+
+    await update.message.reply_text(_md_to_html(message))
+    return ConversationHandler.END
+
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Operazione annullata. Usa /start per tornare al menu.")
     return ConversationHandler.END
@@ -325,10 +439,16 @@ async def start_telegram_bot():
                 CallbackQueryHandler(handle_callback)
             ],
             states={
+                WAITING_CONSENT: [
+                    CallbackQueryHandler(handle_callback, pattern=r"^consent:")
+                ],
                 WAITING_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_name)],
                 WAITING_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_email)],
             },
-            fallbacks=[CommandHandler("cancel", cancel)],
+            fallbacks=[
+                CommandHandler("cancel", cancel),
+                CommandHandler("delete_my_data", delete_my_data),
+            ],
             per_message=False
         )
 

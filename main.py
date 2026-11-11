@@ -1,8 +1,9 @@
+import hmac
 import os
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
 from dotenv import load_dotenv
@@ -43,6 +44,40 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABAS
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "Copenhagen Re-Commerce Matrix API is running."}
+
+
+@app.delete("/leads/{telegram_user_id}")
+def delete_lead(
+    telegram_user_id: int,
+    x_lead_delete_token: str | None = Header(default=None),
+):
+    """Delete all lead data for a Telegram user after an authenticated request."""
+    configured_token = os.getenv("LEAD_DELETE_TOKEN")
+    if not configured_token:
+        raise HTTPException(status_code=503, detail="Lead deletion is not configured")
+    if not x_lead_delete_token or not hmac.compare_digest(
+        x_lead_delete_token, configured_token
+    ):
+        raise HTTPException(status_code=401, detail="Invalid deletion token")
+
+    if supabase is None:
+        raise HTTPException(status_code=503, detail="Database is not configured")
+
+    try:
+        response = supabase.rpc(
+            "delete_lead_data",
+            {
+                "p_telegram_user_id": telegram_user_id,
+                "p_actor": "authenticated_api_request",
+            },
+        ).execute()
+    except Exception:
+        raise HTTPException(status_code=500, detail="Lead deletion failed")
+
+    deleted = getattr(response, "data", 0) or 0
+    if isinstance(deleted, list):
+        deleted = deleted[0] if deleted else 0
+    return {"deleted": int(deleted)}
 
 
 @app.get("/zones")
