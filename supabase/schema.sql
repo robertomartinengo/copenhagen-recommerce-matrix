@@ -16,9 +16,10 @@ CREATE TABLE IF NOT EXISTS copenhagen_zones (
 );
 
 -- Tabella lead acquisiti dal bot Telegram
+-- telegram_user_id è UNIQUE: un utente Telegram ha una sola riga lead attiva.
 CREATE TABLE IF NOT EXISTS leads (
     id SERIAL PRIMARY KEY,
-    telegram_user_id BIGINT,
+    telegram_user_id BIGINT UNIQUE,
     telegram_username TEXT,
     full_name TEXT,
     email TEXT,
