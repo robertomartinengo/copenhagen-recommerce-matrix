@@ -184,6 +184,7 @@ Only verifiable facts. Add one line after each significant fix or trade-off.
 - 2026-11-10: the bot gates lead persistence on explicit consent and the database mutation/audit path is implemented with an additive migration pending production deployment.
 - 2026-11-10: `/start` added as a ConversationHandler fallback and `conversation_timeout=300` set (task 1.10); handler extracted into `build_conv_handler()` for testability; 27 tests pass.
 - 2026-11-10: `httpx` timeout raised from 10 s to 30 s with one retry via `_fetch_with_retry()` (task 1.11); applied to all 3 bot-to-API calls to survive Render cold starts.
+- 2026-11-10: Duplicate bot polling eliminated (task 1.12); `_bot_task` reference in `main.py` lifespan prevents duplicate starts on reload, `_telegram_app` in `bot.py` enables clean shutdown via `stop_telegram_bot()`.
 
 ## D-019 Consent-aware, auditable lead persistence
 - Status: Implemented in code; production migration pending.

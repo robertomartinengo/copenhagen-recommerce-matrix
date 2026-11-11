@@ -22,6 +22,9 @@ from privacy import PRIVACY_NOTICE_URL, PRIVACY_NOTICE_VERSION
 
 load_dotenv(override=True)
 
+# Riferimento all'application Telegram per lo shutdown pulito nel lifespan dell'API.
+_telegram_app: Application | None = None
+
 
 def _md_to_html(text: str) -> str:
     """Converte i semplici marcatori Markdown (*grassetto*, `codice`) in HTML,
@@ -479,6 +482,7 @@ def build_conv_handler() -> ConversationHandler:
 
 
 async def start_telegram_bot():
+    global _telegram_app
     try:
         token = os.getenv("TELEGRAM_BOT_TOKEN")
         if not token:
@@ -487,6 +491,7 @@ async def start_telegram_bot():
 
         print("🤖 [BOT] Inizializzazione Bot Telegram con Lead Funnel in corso...", flush=True)
         app = Application.builder().token(token).build()
+        _telegram_app = app
 
         conv_handler = build_conv_handler()
 
@@ -498,6 +503,22 @@ async def start_telegram_bot():
         print("✅ [BOT] Bot Telegram avviato con successo e in ascolto 24/7!", flush=True)
     except Exception as e:
         print(f"❌ [BOT] Errore critico durante l'avvio del bot: {e}", flush=True)
+
+
+async def stop_telegram_bot() -> None:
+    """Ferma pulitamente il bot Telegram (chiamato dallo shutdown del lifespan)."""
+    global _telegram_app
+    if _telegram_app is None:
+        return
+    try:
+        await _telegram_app.updater.stop_polling()
+        await _telegram_app.stop()
+        await _telegram_app.shutdown()
+        print("🛑 [BOT] Bot Telegram fermato correttamente.", flush=True)
+    except Exception as e:
+        print(f"⚠️ [BOT] Errore durante lo shutdown del bot: {e}", flush=True)
+    finally:
+        _telegram_app = None
 
 
 if __name__ == "__main__":

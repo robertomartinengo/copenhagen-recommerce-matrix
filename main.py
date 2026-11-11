@@ -9,16 +9,39 @@ from supabase import create_client
 from dotenv import load_dotenv
 
 from cpi_engine import calculate_dynamic_cpi
-from bot import start_telegram_bot
+from bot import start_telegram_bot, stop_telegram_bot
 
 load_dotenv(override=True)
+
+# Riferimento al task del bot Telegram per evitare avvii duplicati
+# (es. reload in sviluppo) e per lo shutdown pulito.
+_bot_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _bot_task
+    # Ferma eventuali task precedenti (es. reload in sviluppo)
+    if _bot_task is not None and not _bot_task.done():
+        _bot_task.cancel()
+        try:
+            await _bot_task
+        except asyncio.CancelledError:
+            pass
     # Avvia il bot Telegram in background all'avvio del server
-    asyncio.create_task(start_telegram_bot())
-    yield
+    _bot_task = asyncio.create_task(start_telegram_bot())
+    try:
+        yield
+    finally:
+        # Shutdown pulito del bot
+        if _bot_task is not None and not _bot_task.done():
+            _bot_task.cancel()
+            try:
+                await _bot_task
+            except asyncio.CancelledError:
+                pass
+        await stop_telegram_bot()
+        _bot_task = None
 
 
 app = FastAPI(
