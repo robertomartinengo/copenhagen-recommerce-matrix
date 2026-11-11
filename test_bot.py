@@ -2,6 +2,8 @@ import asyncio
 import threading
 from types import SimpleNamespace
 
+from telegram.ext import CommandHandler
+
 import bot
 from pdf_generator import _sanitize_filename
 
@@ -69,3 +71,21 @@ def test_receive_email_refuses_to_store_without_consent(monkeypatch):
     assert result == bot.ConversationHandler.END
     assert not rpc_called
     assert "consenso" in messages[0].lower()
+
+
+def test_conversation_handler_allows_start_during_flow():
+    conv_handler = bot.build_conv_handler()
+
+    fallback_commands = [
+        cmd for h in conv_handler.fallbacks
+        if isinstance(h, CommandHandler)
+        for cmd in h.commands
+    ]
+
+    assert "start" in fallback_commands, (
+        "/start must be available as a fallback during an open conversation"
+    )
+    assert conv_handler.conversation_timeout is not None, (
+        "conversation_timeout must be set to recover stuck conversations"
+    )
+    assert conv_handler.conversation_timeout > 0

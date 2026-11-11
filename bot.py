@@ -423,6 +423,35 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+def build_conv_handler() -> ConversationHandler:
+    """Build the lead-generation conversation handler.
+
+    `/start` is available as a fallback so users can always return to the menu,
+    even while waiting for name/email/consent. A 5-minute conversation timeout
+    prevents stuck conversations from blocking the bot indefinitely.
+    """
+    return ConversationHandler(
+        entry_points=[
+            CommandHandler("start", start_command),
+            CallbackQueryHandler(handle_callback)
+        ],
+        states={
+            WAITING_CONSENT: [
+                CallbackQueryHandler(handle_callback, pattern=r"^consent:")
+            ],
+            WAITING_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_name)],
+            WAITING_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_email)],
+        },
+        fallbacks=[
+            CommandHandler("start", start_command),
+            CommandHandler("cancel", cancel),
+            CommandHandler("delete_my_data", delete_my_data),
+        ],
+        conversation_timeout=300,
+        per_message=False
+    )
+
+
 async def start_telegram_bot():
     try:
         token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -433,24 +462,7 @@ async def start_telegram_bot():
         print("🤖 [BOT] Inizializzazione Bot Telegram con Lead Funnel in corso...", flush=True)
         app = Application.builder().token(token).build()
 
-        conv_handler = ConversationHandler(
-            entry_points=[
-                CommandHandler("start", start_command),
-                CallbackQueryHandler(handle_callback)
-            ],
-            states={
-                WAITING_CONSENT: [
-                    CallbackQueryHandler(handle_callback, pattern=r"^consent:")
-                ],
-                WAITING_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_name)],
-                WAITING_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_email)],
-            },
-            fallbacks=[
-                CommandHandler("cancel", cancel),
-                CommandHandler("delete_my_data", delete_my_data),
-            ],
-            per_message=False
-        )
+        conv_handler = build_conv_handler()
 
         app.add_handler(conv_handler)
 

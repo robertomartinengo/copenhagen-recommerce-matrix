@@ -182,6 +182,7 @@ Only verifiable facts. Add one line after each significant fix or trade-off.
 - 2026-11-08: LLM autorouting implemented (Gemini → Groq → OpenRouter → deterministic fallback) via `autorouting.py`; `ai_reporter.py` updated accordingly.
 - 2026-11-10: PDF rendering and its AI narration run in a worker thread, verified by a thread-ID test; 26 offline tests pass.
 - 2026-11-10: the bot gates lead persistence on explicit consent and the database mutation/audit path is implemented with an additive migration pending production deployment.
+- 2026-11-10: `/start` added as a ConversationHandler fallback and `conversation_timeout=300` set (task 1.10); handler extracted into `build_conv_handler()` for testability; 27 tests pass.
 
 ## D-019 Consent-aware, auditable lead persistence
 - Status: Implemented in code; production migration pending.
