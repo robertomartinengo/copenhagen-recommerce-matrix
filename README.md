@@ -4,8 +4,6 @@
 
 [![CI Pipeline](https://github.com/robertomartinengo/copenhagen-recommerce-matrix/actions/workflows/ci.yml/badge.svg)](https://github.com/robertomartinengo/copenhagen-recommerce-matrix/actions)
 ![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)
-![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)
-![Code Style](https://img.shields.io/badge/type--check-mypy%20100%25-blue)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 
 ---
@@ -40,11 +38,10 @@ The platform is built on a proprietary three-tier architecture consisting of a b
 
 * **Backend & API:** FastAPI, Uvicorn, Pydantic v2
 * **Database & Persistence:** Supabase (PostgreSQL)
-* **Control Room & Visualization:** Streamlit, Plotly Express, Plotly Graph Objects, GeoJSON
+* **Control Room & Visualization:** Streamlit
 * **Reporting & Exports:** fpdf2, Pandas
 * **Bot Interface:** python-telegram-bot
-* **Code Quality & Testing:** pytest, pytest-cov, mypy
-* **Containerization:** Docker, Docker Compose
+* **Code Quality & Testing:** pytest, pytest-cov, mypy, ruff
 
 ---
 

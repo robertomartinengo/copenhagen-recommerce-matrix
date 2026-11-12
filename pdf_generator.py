@@ -1,6 +1,13 @@
 from fpdf import FPDF
 from typing import Tuple
-from ai_reporter import generate_executive_narrative
+from ai_reporter import generate_executive_narrative_with_source
+
+
+def _attribution_label(source: str) -> str:
+    """Etichetta footer che dichiara l'origine del testo narrativo."""
+    if source == "llm":
+        return "Generato con AI (modello linguistico)"
+    return "Testo generato da template (fallback AI non disponibile)"
 
 
 def _sanitize_filename(name: str) -> str:
@@ -37,6 +44,7 @@ def _clean_text(text: str) -> str:
 class B2BExecutivePDF(FPDF):
     def __init__(self):
         super().__init__(orientation="P", unit="mm", format="A4")
+        self.alias_nb_pages()
         self.set_auto_page_break(auto=True, margin=15)
         self.add_page()
         

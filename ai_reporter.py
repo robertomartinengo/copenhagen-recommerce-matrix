@@ -5,9 +5,19 @@ DEFAULT_MODEL = "gemini-3.8-flash"
 
 
 def generate_executive_narrative(zone_data: dict, business_type: str = "curated_vintage") -> str:
-    """
-    Genera un'analisi executive su misura usando Gemini API.
-    Se la chiave manca o l'API non risponde, attiva un fallback elegante senza interrompere il servizio.
+    """Genera un'analisi executive (testo LLM o fallback deterministico)."""
+    text, _source = generate_executive_narrative_with_source(zone_data, business_type)
+    return text
+
+
+def generate_executive_narrative_with_source(
+    zone_data: dict, business_type: str = "curated_vintage"
+) -> tuple[str, str]:
+    """Genera l'analisi executive restituendo la tupla (testo, sorgente).
+
+    sorgente puo essere 'llm' (risposta da provider AI) oppure 'template'
+    (fallback deterministico se l'API fallisce o e disabilitata).
+    Il footer del PDF la usa per dichiarare in modo onesto l'origine del testo.
     """
     name = zone_data.get("name", "N/A")
     cpi = zone_data.get("cpi_score", 0)
@@ -37,9 +47,9 @@ Requisiti del testo:
     except Exception:
         text = None
     if text and text.strip():
-        return text.strip()
+        return text.strip(), "llm"
 
-    return _fallback_narrative(name, cpi, gen_z, avg_income, business_label)
+    return _fallback_narrative(name, cpi, gen_z, avg_income, business_label), "template"
 
 
 def _fallback_narrative(name: str, cpi: float, gen_z: int, avg_income: float, business_label: str) -> str:
@@ -49,7 +59,7 @@ def _fallback_narrative(name: str, cpi: float, gen_z: int, avg_income: float, bu
         return (
             f"Il distretto di {name} presenta un'eccellente sinergia per il format {business_label}. "
             f"L'elevata concentrazione di target Gen Z ({gen_z:,.0f} residenti) e le condizioni di mercato "
-            f"locali garantiscono un rapido assorbimento dell'offerta e un posizionamento ad alto ROI."
+            f"locali favoriscono lo sviluppo di un punto vendita di prossimita."
         )
     elif cpi_val >= 7.0:
         return (
