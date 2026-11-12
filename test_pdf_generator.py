@@ -7,8 +7,8 @@ from pdf_generator import generate_executive_pdf
 def test_generate_executive_pdf_success(tmp_path, monkeypatch):
     monkeypatch.setattr(
         pdf_generator,
-        "generate_executive_narrative",
-        lambda *_args, **_kwargs: "Analisi di test offline.",
+        "generate_executive_narrative_with_source",
+        lambda *_args, **_kwargs: ("Analisi di test offline.", "template"),
     )
     sample_district = {
         "name": "Nørrebro",
