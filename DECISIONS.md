@@ -186,6 +186,7 @@ Only verifiable facts. Add one line after each significant fix or trade-off.
 - 2026-11-10: `httpx` timeout raised from 10 s to 30 s with one retry via `_fetch_with_retry()` (task 1.11); applied to all 3 bot-to-API calls to survive Render cold starts.
 - 2026-11-10: Duplicate bot polling eliminated (task 1.12); `_bot_task` reference in `main.py` lifespan prevents duplicate starts on reload, `_telegram_app` in `bot.py` enables clean shutdown via `stop_telegram_bot()`.
 - 2026-11-11: Lead deduplication and unique constraint (task 1.13); migration `20261111000000_dedupe_leads_unique_telegram_user_id.sql` deduplicates existing rows, adds `UNIQUE (telegram_user_id)`, and makes `insert_lead_with_consent` an upsert.
+- 2026-11-11: Security hardening (tasks 1.17-1.19): `POST /leads` endpoint removed from `main.py`; CORS `allow_credentials` set to `False`; no PII or secrets found in `bot.py`/`database.py` logs.
 
 ## D-019 Consent-aware, auditable lead persistence
 - Status: Implemented in code; production migration pending.

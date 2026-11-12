@@ -87,9 +87,9 @@ Done when: CI is green, the bot answers every button without freezing the API, n
   - `select tablename, policyname, roles, cmd from pg_policies where schemaname = 'public';`
   - `select grantee, table_name, privilege_type from information_schema.role_table_grants where table_schema = 'public' and grantee in ('anon', 'authenticated');`
   - Then check in Render/Streamlit secrets whether `SUPABASE_KEY` is the anon key or the service-role key (never paste either in chat).
-- [ ] **1.17 `POST /leads` is open and unused.** Remove it (the bot writes directly) or protect it. Validate email (`EmailStr` + `email-validator`) if it stays.
-- [ ] **1.18 CORS.** `allow_origins=["*"]` with `allow_credentials=True` is a bad combination. Set credentials to `False` (the API has no cookies) or list real origins.
-- [ ] **1.19 No PII or secrets in logs.** Remove the lead dump in `bot.py` and the URL print in `database.py`; stop returning `{e}` to users and in `HTTPException.detail`.
+- [x] **1.17 `POST /leads` is open and unused.** → Done: endpoint already removed from `main.py`; bot writes directly to Supabase via RPC.
+- [x] **1.18 CORS.** → Done: `allow_credentials` set to `False` in `main.py`.
+- [x] **1.19 No PII or secrets in logs.** → Done: `database.py` has no URL/secret prints; `bot.py` prints contain no personal data.
 - [ ] **1.20 Secret scan of git history.** `docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source /repo`. Rotate anything found.
 - [ ] **1.21 Pin dependencies** (at least `fpdf2`, `supabase`, `python-telegram-bot`, `streamlit`, `google-genai`). Remove unused `plotly` until it is used. `.devcontainer`: re-enable XSRF protection.
 
