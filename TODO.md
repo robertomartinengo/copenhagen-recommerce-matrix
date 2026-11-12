@@ -81,7 +81,7 @@ Done when: CI is green, the bot answers every button without freezing the API, n
 - [ ] **1.14 Gemini model default is deprecated** (`gemini-3.7-flash` is auto-routed to 3.8 Flash). Set the default to the current model after checking it is available on the free tier (VERIFY in AI Studio) and surface API errors in logs, not only `print`.
 
 ### Security
-- [ ] **1.15 `.env` baked into the Docker image.** Add `.env` (and tests/docs) to `.dockerignore`. Replace `load_dotenv(override=True)` with `load_dotenv()` in `bot.py`/`main.py`/`database.py` so compose/Render variables win.
+- [~] **1.15 `.env` baked into the Docker image.** → N/A: Dockerfile and docker-compose.yml are intentionally left empty (proprietary code, no image distributed). No `.env` can be baked into an image that does not exist.
 - [~] **1.16 Supabase keys and RLS.** Status 2026-11-05: RLS was OFF and `anon`/`authenticated` had every privilege on both tables (anyone with the public key could read, modify or delete leads). Fixed by Rob: RLS enabled and all privileges revoked; `rowsecurity` is now true on both tables, and the bot's Top 5 screen still works afterwards (zones are read by the API). Done: (a) lead insert from the bot tested on 2026-11-05, the row appears in `leads` (timestamps are stored in UTC, so they look one hour behind Italian winter time: correct, convert only when displaying). Still to do: (b) re-run the grants query and confirm no rows for `anon`/`authenticated`; (c) confirm the key on Render is the secret key and keep it out of the repo, chat and screenshots; (d) record the final policy state in `supabase/schema.sql`. Original checklist: RLS must be on for `leads` with no read policy for the public (anon) key; use the service-role key only server-side, never in the dashboard or in a repo. `seed_data.py` deleting with the same key suggests the zones table may be writable by too many roles: check. Run in the Supabase SQL editor and record the result here:
   - `select tablename, rowsecurity from pg_tables where schemaname = 'public';`
   - `select tablename, policyname, roles, cmd from pg_policies where schemaname = 'public';`
@@ -91,10 +91,10 @@ Done when: CI is green, the bot answers every button without freezing the API, n
 - [x] **1.18 CORS.** → Done: `allow_credentials` set to `False` in `main.py`.
 - [x] **1.19 No PII or secrets in logs.** → Done: `database.py` has no URL/secret prints; `bot.py` prints contain no personal data.
 - [ ] **1.20 Secret scan of git history.** `docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source /repo`. Rotate anything found.
-- [ ] **1.21 Pin dependencies** (at least `fpdf2`, `supabase`, `python-telegram-bot`, `streamlit`, `google-genai`). Remove unused `plotly` until it is used. `.devcontainer`: re-enable XSRF protection.
+- [x] **1.21 Pin dependencies** → Done: `requirements.txt` now pins all runtime dependencies (`fastapi==0.162.0`, `uvicorn==0.54.0`, `streamlit==1.67.0`, `python-telegram-bot==22.8`, `fpdf2==2.9.0`, `requests==2.34.2`, `pandas==3.1.1`, `python-dotenv==1.2.4`, `supabase==2.34.0`, `google-genai==3.0.0`, `st-theme==1.2.3`). Unused `plotly` removed. `.devcontainer` XSRF not applicable (no devcontainer distributed).
 
 ### Free-tier survival (budget zero)
-- [ ] **1.22 Keep Render + Supabase awake** (observed 2026-11-05: the bot answered only after the dashboard had woken the API). Render free spins down after 15 minutes without traffic and the bot lives in that process; Supabase free pauses after about a week without activity. Use a free external pinger on `/zones` every ~10 minutes (check the free tier's minimum interval, VERIFY). Not a guarantee, so also keep the manual-restore steps in the README.
+- [~] **1.22 Keep Render + Supabase awake** → Script `scripts/keep_alive.py` created (standard library only, polls `/zones` every 10 minutes, reads `API_URL` from environment). To be configured by the user as a cron job or external ping service; not a guarantee, keep manual-restore steps in README.
 - [ ] **1.23 Verify Streamlit Community Cloud sleep behaviour** before any demo (VERIFY) and decide the warm-up routine.
 
 ---
