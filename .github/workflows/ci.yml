@@ -39,3 +39,5 @@ jobs:
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       run: |
         pytest --cov=. --cov-report=term-missing
+        python -m ruff check .
+        python -m mypy cpi_engine.py schemas.py --ignore-missing-imports
