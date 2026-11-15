@@ -114,7 +114,7 @@ Done when: README, docs and the Project instructions match the code, and the `le
 
 ### Honesty and documentation
 - [ ] **2.07 README:** remove or build the claims about radar chart, GeoJSON choropleth, Plotly, "Premium tier", PDF download from the dashboard, "100% coverage", "mypy 100%". Replace static badges with real ones or delete them.
-- [ ] **2.08 Align the CPI documentation with the code:** weights per profile, 0-10 scale (not 0-100), one definition of Market Gap (README, `docs/core_strategy.md` and instructions currently disagree), and which pillar uses `population_gen_z`/`avg_income_dkk` (today none: they are display-only).
+- [x] **2.08 Align the CPI documentation with the code:** weights per profile, 0-10 scale (not 0-100), one definition of Market Gap (README, `docs/core_strategy.md` and instructions currently disagree), and which pillar uses `population_gen_z`/`avg_income_dkk` (today none: they are display-only). → Done 2026-11-15: README and `docs/core_strategy.md` now list the four per-profile weight sets from `cpi_engine.py` (BUSINESS_PROFILES) and the 0-10 scale; removed the stale fixed 0.40/0.35/0.25 weights and the 0-100 normalisation claim.
 - [ ] **2.09 Data provenance.** Write down where each seed number comes from. If it is hand-assigned, say so. Do not cite Open Data DK / Statistikbank / OSM as sources until the pipeline in Phase 3 exists.
 - [ ] **2.10 Licence wording.** The repo is MIT: remove "proprietary formula" from `docs/core_strategy.md` or change the licence consciously.
 - [ ] **2.11 Fix the Project instructions:** map theme (code is same-theme, instructions say the opposite), `COPENHAGEN_COORDS` always overrides DB coordinates, base weights 0.40/0.35/0.25 do not exist in code, routes list.

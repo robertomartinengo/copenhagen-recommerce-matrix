@@ -18,13 +18,20 @@ Leveraging a multi-criteria mathematical model (**Circular Potential Index - CPI
 
 ## 🧮 Mathematical Model: Circular Potential Index (CPI)
 
-The **CPI** score ($0.0 - 10.0$) is calculated in real-time using a weighted combination of three core pillars:
+The **CPI** score ($0.0 - 10.0$) is calculated in real-time as a weighted sum of three pillars — Supply, Demographics and Market Gap — with weights that depend on the selected business profile (`cpi_engine.py`, `BUSINESS_PROFILES`):
+
+| Business profile | Supply ($w_1$) | Demographics ($w_2$) | Market Gap ($w_3$) | Sum |
+|---|---:|---:|---:|---:|
+| Vintage Premium | 0.20 | 0.40 | 0.40 | 1.00 |
+| Kilo Sale | 0.50 | 0.30 | 0.20 | 1.00 |
+| Upcycling | 0.40 | 0.20 | 0.40 | 1.00 |
+| Curated Vintage | 0.33 | 0.33 | 0.34 | 1.00 |
 
 $$\text{CPI} = (w_1 \cdot \text{Supply Score}) + (w_2 \cdot \text{Demographics Score}) + (w_3 \cdot \text{Market Gap Score})$$
 
-* **Supply Score ($w_1 = 0.40$):** Textile waste density and annual recoverable material volume (t/year).
-* **Demographics Score ($w_2 = 0.35$):** Concentration of the Gen Z/Millennial target demographic and average disposable income (DKK).
-* **Market Gap Score ($w_3 = 0.25$):** Market opportunity measured by the ratio of the resident population to existing second-hand stores or collection bins.
+* **Supply Score:** textile waste density and recoverable material volume.
+* **Demographics Score:** share of the 18-35 target resident base and disposable income (DKK). Derived from `population_gen_z` and `avg_income_dkk` via min-max normalisation (see `D-016` in `DECISIONS.md`).
+* **Market Gap Score:** resident population versus existing second-hand stores and collection bins.
 
 ---
 
