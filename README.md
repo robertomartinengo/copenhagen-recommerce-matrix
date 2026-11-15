@@ -4,7 +4,7 @@
 
 [![CI Pipeline](https://github.com/robertomartinengo/copenhagen-recommerce-matrix/actions/workflows/ci.yml/badge.svg)](https://github.com/robertomartinengo/copenhagen-recommerce-matrix/actions)
 ![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)
-![License](https://img.shields.io/badge/license-Proprietary-red.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ---
 
@@ -54,24 +54,24 @@ The platform is built on a proprietary three-tier architecture consisting of a b
 
 ## ✨ Key Features & Deliverables
 
-### 1. 🗺️ Spatial Heatmap (GeoJSON Polygonal Choropleth)
+### 1. 🗺️ Spatial Heatmap (3D Column Map)
 
-High-precision geographical visualization of the 11 districts of Greater Copenhagen and Frederiksberg, featuring adaptive color gradients based on the CPI score.
+3D column map of Greater Copenhagen districts built with PyDeck ColumnLayer on a CARTO basemap, showing CPI score per district. Column height scales with the CPI value; the map follows the browser light/dark theme.
 
-### 2. ⚔️ Side-by-Side B2B Benchmark & Radar Chart
+### 2. 📊 District Comparison Table
 
-Direct analytical comparison between two selected districts (Textile Raw Material, Gen Z Target, Market Opportunity) using side-by-side bar charts and a two-dimensional radar profile.
+Side-by-side comparison of districts showing CPI score, Gen Z core population and average income, sorted by CPI for the selected business profile.
 
 ### 3. 📄 Automated Executive PDF Generator
 
 Real-time dynamic generation of downloadable B2B summary sheets in PDF format, complete with metropolitan ratings, pillar breakdowns, and strategic retail opening recommendations.
 
-### 4. 🤖 Freemium Telegram Bot Assistant
+### 4. 🤖 Telegram Bot Assistant
 
-Direct conversational interface designed for the end-user/retailer:
+Conversational interface for end-users and retailers:
 
-* **Free Tier:** Immediate chat consultation of the top zone and key indicators.
-* **Premium Tier:** Automatic generation and delivery of the full Executive PDF Report directly in the chat.
+* **Top zone query:** immediate chat consultation of the top district and key indicators.
+* **PDF report:** on-demand generation of the executive PDF report (delivered in chat when the AI service is available, with a deterministic fallback).
 
 ---
 
@@ -90,7 +90,7 @@ Users can delete their data with the Telegram command `/delete_my_data`. The API
 
 ## 🧪 Testing & Quality Assurance
 
-*The project guarantees a high standard of code quality with 100% test coverage:*
+*The project uses pytest for unit tests, ruff for linting and mypy for static type checking:*
 
 ```bash
 # Run the test suite with coverage report
