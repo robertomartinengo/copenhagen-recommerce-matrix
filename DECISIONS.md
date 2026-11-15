@@ -49,7 +49,7 @@ if a decision changes, add a new entry and mark the old one "Superseded by D-0XX
 - Status: Accepted.
 - Decision: `ai_reporter.py` produces ~70 words of text from four numbers; any error or empty
   answer falls back to a template. The model comes from `GEMINI_MODEL`.
-- Facts: the default `gemini-3.7-flash` is deprecated (routed to 3.8 Flash). No personal data is sent to the model.
+- Facts: the default model is `gemini-3.8-flash` (Stable on Google AI Studio, available on the free tier with rate limits). No personal data is sent to the model.
 - Honest framing: the AI does not compute the CPI. It writes commentary on top of a deterministic index.
 
 ## D-007 PyDeck ColumnLayer instead of a GeoJSON choropleth

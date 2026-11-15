@@ -12,10 +12,13 @@ All API keys are read from environment variables. No personal data is sent
 to any model (see .clinerules rule 10).
 """
 
+import logging
 import os
 import httpx
 from google import genai
 from google.genai import types
+
+logger = logging.getLogger(__name__)
 
 GEMINI_DEFAULT_MODEL = "gemini-3.8-flash"
 GROQ_DEFAULT_MODEL = "llama-3.1-8b-instant"
@@ -47,7 +50,7 @@ def _call_gemini(prompt: str) -> str | None:
         if text and text.strip():
             return text.strip()
     except Exception:
-        pass
+        logger.warning("Gemini provider failed")
     return None
 
 
@@ -79,7 +82,7 @@ def _call_groq(prompt: str) -> str | None:
                 if text and text.strip():
                     return text.strip()
     except Exception:
-        pass
+        logger.warning("Groq provider failed")
     return None
 
 
@@ -111,7 +114,7 @@ def _call_openrouter(prompt: str) -> str | None:
                 if text and text.strip():
                     return text.strip()
     except Exception:
-        pass
+        logger.warning("OpenRouter provider failed")
     return None
 
 
