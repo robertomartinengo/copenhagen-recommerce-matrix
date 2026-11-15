@@ -236,9 +236,9 @@ def generate_executive_pdf(zone_data: dict, filename: str = "Executive_Report_De
     # --- RACCOMANDAZIONE DALL'AI NARRATIVE ENGINE ---
     y_rec = y_bar + 10
     
-    raw_narrative = generate_executive_narrative(
-        zone_data, 
-        business_type=zone_data.get("business_profile_used", "curated_vintage")
+    raw_narrative, source = generate_executive_narrative_with_source(
+        zone_data,
+        business_type=zone_data.get("business_profile_used", "curated_vintage"),
     )
     rec_text = _clean_text(raw_narrative)
     
@@ -262,7 +262,7 @@ def generate_executive_pdf(zone_data: dict, filename: str = "Executive_Report_De
     pdf.set_xy(20, 275)
     pdf.set_font("Helvetica", "", 8)
     pdf.set_text_color(156, 163, 175)
-    pdf.cell(0, 5, "Copenhagen Re-Commerce Matrix  |  Generato tramite AI")
+    pdf.cell(0, 5, "Copenhagen Re-Commerce Matrix  |  " + _attribution_label(source))
     pdf.set_xy(160, 275)
     pdf.cell(30, 5, "Pagina 1 di 1", align="R")
 
