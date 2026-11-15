@@ -188,8 +188,11 @@ for zone in raw_zones:
     score = float(z_data.get("cpi_score", 0))
 
     name_lower = z_data["name"].lower().strip()
-    if name_lower in COPENHAGEN_COORDS:
-        z_data["lat"], z_data["lon"] = COPENHAGEN_COORDS[name_lower]
+    # Coordinate del DB hanno la priorità; COPENHAGEN_COORDS è solo un fallback
+    # per zone prive di coordinate nel database (visto TODO 2.11).
+    if not z_data.get("lat") or not z_data.get("lon"):
+        if name_lower in COPENHAGEN_COORDS:
+            z_data["lat"], z_data["lon"] = COPENHAGEN_COORDS[name_lower]
 
     # Scarta zone senza coordinate valide (None, 0 o assenti)
     if not z_data.get("lat") or not z_data.get("lon"):
