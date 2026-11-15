@@ -10,7 +10,7 @@ from streamlit_theme import st_theme
 
 load_dotenv()
 
-API_URL = os.getenv("API_URL", "https://copenhagen-recommerce-matrix.onrender.com")
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(

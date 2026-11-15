@@ -118,7 +118,7 @@ Done when: README, docs and the Project instructions match the code, and the `le
 - [ ] **2.09 Data provenance.** Write down where each seed number comes from. If it is hand-assigned, say so. Do not cite Open Data DK / Statistikbank / OSM as sources until the pipeline in Phase 3 exists.
 - [ ] **2.10 Licence wording.** The repo is MIT: remove "proprietary formula" from `docs/core_strategy.md` or change the licence consciously.
 - [ ] **2.11 Fix the Project instructions:** map theme (code is same-theme, instructions say the opposite), `COPENHAGEN_COORDS` always overrides DB coordinates, base weights 0.40/0.35/0.25 do not exist in code, routes list.
-- [ ] **2.12 `.env.example`:** add `GEMINI_API_KEY`, `GEMINI_MODEL`; make the three `API_URL` defaults consistent; the dashboard must not default to the production URL.
+- [x] **2.12 `.env.example`:** add `GEMINI_API_KEY`, `GEMINI_MODEL`; make the three `API_URL` defaults consistent; the dashboard must not default to the production URL. → Done 2026-11-15: added `GEMINI_MODEL=gemini-3.8-flash` to `.env.example`; aligned `API_URL` defaults to `http://127.0.0.1:8000` in `dashboard.py`, `bot.py` and `scripts/keep_alive.py`; dashboard no longer defaults to the production Render URL.
 - [ ] **2.13 PDF footer honesty:** say when the text is template-generated, not AI; real page count; remove the unsupported "high ROI" wording from the fallback text.
 - [ ] **2.14 Cleanup:** delete or use `schemas.py` (wire as `response_model`) and the unused GeoJSON (or replace it with real district boundaries and a source).
 

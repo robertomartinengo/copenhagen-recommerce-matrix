@@ -58,7 +58,7 @@ async def _fetch_with_retry(client: httpx.AsyncClient, url: str) -> httpx.Respon
         raise last_error
     return await client.get(url, timeout=API_TIMEOUT)
 
-API_URL = os.getenv("API_URL", "http://127.0.0.1:10000")
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 # Timeout e retry per le chiamate API. Render free tier può impiegare fino a
 # ~1 minuto per svegliarsi dopo il cold start; un singolo tentativo da 10 s

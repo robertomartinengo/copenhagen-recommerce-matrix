@@ -14,7 +14,7 @@ POLL_INTERVAL_SECONDS = 600  # 10 minutes
 
 
 def poll_once() -> None:
-    api_url = os.getenv("API_URL", "").strip()
+    api_url = os.getenv("API_URL", "http://127.0.0.1:8000").strip()
     if not api_url:
         print("[keep_alive] API_URL not set; skipping poll.", flush=True)
         return
