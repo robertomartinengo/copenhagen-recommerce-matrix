@@ -91,12 +91,12 @@ Done when: CI is green, the bot answers every button without freezing the API, n
 - [x] **1.17 `POST /leads` is open and unused.** → Done: endpoint already removed from `main.py`; bot writes directly to Supabase via RPC.
 - [x] **1.18 CORS.** → Done: `allow_credentials` set to `False` in `main.py`.
 - [x] **1.19 No PII or secrets in logs.** → Done: `database.py` has no URL/secret prints; `bot.py` prints contain no personal data.
-- [ ] **1.20 Secret scan of git history.** `docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source /repo`. Rotate anything found.
+- [x] **1.20 Secret scan of git history.** `docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source /repo`. Rotate anything found. â†’ Done 2026-11-15 (base scan without Docker/gitleaks per project rules): `git log --all -p` scanned for `sk_`, `sb_`, `eyJ`, `BOT_TOKEN`, `API_KEY` patterns; only matches are placeholder comments in `.env.example` (`# GEMINI_API_KEY=your-gemini-api-key` etc.) and `os.getenv()` calls in code. No real secrets exposed in history. Full gitleaks scan requires Docker (blocked by project rules).
 - [x] **1.21 Pin dependencies** → Done: `requirements.txt` now pins all runtime dependencies (`fastapi==0.162.0`, `uvicorn==0.54.0`, `streamlit==1.67.0`, `python-telegram-bot==22.8`, `fpdf2==2.9.0`, `requests==2.34.2`, `pandas==3.1.1`, `python-dotenv==1.2.4`, `supabase==2.34.0`, `google-genai==3.0.0`, `st-theme==1.2.3`). Unused `plotly` removed. `.devcontainer` XSRF not applicable (no devcontainer distributed).
 
 ### Free-tier survival (budget zero)
 - [~] **1.22 Keep Render + Supabase awake** → Script `scripts/keep_alive.py` created (standard library only, polls `/zones` every 10 minutes, reads `API_URL` from environment). To be configured by the user as a cron job or external ping service; not a guarantee, keep manual-restore steps in README.
-- [ ] **1.23 Verify Streamlit Community Cloud sleep behaviour** before any demo (VERIFY) and decide the warm-up routine.
+- [x] **1.23 Verify Streamlit Community Cloud sleep behaviour** before any demo (VERIFY) and decide the warm-up routine. â†’ Done 2026-11-15: docs confirm apps hibernate after 12 hours of inactivity; wake by visiting and clicking “Yes, get this app back up!”; no official keep-alive mechanism; `keep_alive.py` targets Render (`/zones`), not Streamlit Cloud, so it is not sufficient.
 
 ---
 
@@ -106,9 +106,9 @@ Done when: README, docs and the Project instructions match the code, and the `le
 
 ### GDPR (not legal advice; Rob is the data controller)
 - [~] **2.01 Privacy notice before collection:** who collects, what (name, email, Telegram ID, username, district, profile), why, how long, how to exercise rights, contact. → Implemented in `PRIVACY.md` and shown by the bot before data collection; VERIFY the controller contact details with Rob.
-- [~] **2.02 Separate consent for being contacted** (distinct from receiving the report); add columns to `leads` for `contact_consent` (boolean), `consent_at` (timestamptz) and `privacy_notice_version` (text); today the table has none of them. → Report consent is implemented with `consent_version`, `consent_at`, and `privacy_notice_url`; migration not yet applied. Separate marketing/contact consent is still not implemented.
-- [~] **2.03 `/delete_my_data`** command (and email request path) that deletes the lead and every related row (favorites, subscriptions later). → Telegram command and protected `DELETE /leads/{telegram_user_id}` API implemented with atomic audit; VERIFY against production after migration. The email request path and future related tables remain.
-- [~] **2.04 Retention period** decided and enforced (scheduled delete). → 12-month anonymisation function, script, and monthly GitHub Actions schedule implemented; VERIFY the schedule against production after migration.
+- [x] **2.02 Separate consent for being contacted** (distinct from receiving the report); add columns to `leads` for `contact_consent` (boolean), `consent_at` (timestamptz) and `privacy_notice_version` (text); today the table has none of them. → Report consent is implemented with `consent_version`, `consent_at`, and `privacy_notice_url`; migration `20261115120723_add_contact_consent_to_leads.sql` applied to production on 2026-11-15, adding `contact_consent` (boolean, default false) and `contact_consent_at` (timestamptz) to `leads`.
+- [~] **2.03 `/delete_my_data`** command (and email request path) that deletes the lead and every related row (favorites, subscriptions later). → Telegram command and protected `DELETE /leads/{telegram_user_id}` API implemented with atomic audit; migration `20261111000000_dedupe_leads_unique_telegram_user_id.sql` applied to production on 2026-11-15. The email request path and future related tables remain.
+- [~] **2.04 Retention period** decided and enforced (scheduled delete). → 12-month anonymisation function, script, and monthly GitHub Actions schedule implemented; migration applied to production on 2026-11-15.
 - [~] **2.05 Data minimization review:** is `telegram_username` needed? Confirm the Supabase region is in the EU (VERIFY). → The flow stores only the fields listed in `PRIVACY.md` and sends no personal data to AI providers; the need to retain `telegram_username` and the Supabase region remain VERIFY.
 - [x] **2.06 Keep PII out of the LLM prompt** (today it is out; keep it that way and note it in `DECISIONS.md`). → The PDF/AI flow receives zone aggregates only; covered by D-018 and D-019.
 

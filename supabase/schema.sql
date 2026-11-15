@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS leads (
     consent_version TEXT,
     consent_at TIMESTAMPTZ,
     privacy_notice_url TEXT,
+    contact_consent BOOLEAN NOT NULL DEFAULT false,
+    contact_consent_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
