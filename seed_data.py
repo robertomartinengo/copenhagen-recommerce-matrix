@@ -2,6 +2,22 @@ import argparse
 from database import supabase
 from cpi_engine import calculate_dynamic_cpi
 
+# ---------------------------------------------------------------------------
+# Data provenance (see TODO 2.09)
+# All numeric seed values below are hand-assigned for prototyping/demo purposes.
+# They do NOT come from Open Data DK, Københavns Kommune Statistikbank,
+# OpenStreetMap/Overpass, or any other external source. Do not cite those
+# sources until the Phase 3 data pipeline exists and the values are verified.
+# ---------------------------------------------------------------------------
+# population_gen_z: absolute count of Gen Z residents (hand-assigned).
+# avg_income_dkk:   average annual disposable income in DKK (hand-assigned).
+# waste_supply_score: textile waste / supply pillar score 0-10 (hand-assigned).
+# market_gap_score:   market gap / opportunity pillar score 0-10 (hand-assigned).
+# district_code:      Danish 4-digit postal codes; suffixes like "E" in
+#                     "DK-2300-E" are internal project labels, not official
+#                     Danish administrative subdivisions.
+# ---------------------------------------------------------------------------
+
 INITIAL_ZONES = [
     {
         "name": "Indre By",
