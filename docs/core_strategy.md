@@ -1,7 +1,7 @@
 # Copenhagen Re-Commerce Matrix — Strategic Core
 
 ## 1. Circular Potential Index (CPI) Formula
-La formula proprietaria per valutare il potenziale di un quartiere/zona per la moda circolare e il re-commerce:
+La formula per valutare il potenziale di un quartiere/zona per la moda circolare e il re-commerce:
 
 $$	ext{CPI} = (w_1 \cdot 	ext{Supply}) + (w_2 \cdot 	ext{Demographics}) + (w_3 \cdot 	ext{Market Gap})$$
 
